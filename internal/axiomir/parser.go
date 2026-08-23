@@ -86,11 +86,31 @@ type nodeDefinition struct {
 	predecessors []protocol.Digest
 	tableType    protocol.Digest
 	expressions  []nodeExpressionCheck
+	joinPairs    []joinPair
+	groupKeys    []groupKey
+	aggregates   []groupAggregate
 }
 
 type nodeExpressionCheck struct {
+	fieldName   string
 	value       strictjson.Value
 	requireBool bool
+}
+
+type joinPair struct {
+	left  string
+	right string
+}
+
+type groupKey struct {
+	name        string
+	sourceField string
+}
+
+type groupAggregate struct {
+	kind  string
+	name  string
+	field string
 }
 
 type parser struct {
@@ -105,10 +125,9 @@ type parser struct {
 
 // ParseStructure parses canonical Axiom IR v0.1 bytes and verifies the closed
 // structure profile documented by this package, all content-addressed entry
-// IDs and references, checks declaration and primary-key well-formedness,
-// expression typing, node DAG shape, and recomputes document-domain identity.
-// It does not verify complete node input/output table relationships or rebuild
-// obligations.
+// IDs and references, checks declaration, expression, primary-key, and node
+// table relationship well-formedness plus node DAG shape, and recomputes
+// document-domain identity. It does not rebuild or discharge obligations.
 func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 	value, err := strictjson.ParseCanonical(data, limits)
 	if err != nil {
@@ -174,6 +193,9 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 		return Document{}, err
 	}
 	if err := p.validateNodeExpressionTypes(); err != nil {
+		return Document{}, err
+	}
+	if err := p.validateNodeTableRelationships(); err != nil {
 		return Document{}, err
 	}
 	contractCount, err := p.parseEntries(root["contracts"], domainContract, p.parseContractDefinition)

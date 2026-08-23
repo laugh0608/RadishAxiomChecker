@@ -1,4 +1,4 @@
-# Axiom IR v0.1 严格结构与表达式类型切片
+# Axiom IR v0.1 严格结构与类型良构切片
 
 本文冻结独立 checker 首个 Axiom IR parser 的实际声明范围。规范真相源仍是 RadishAxiom 主仓库按摘要锁定的 `docs/ir/axiom-ir-v0.md`；本实现没有导入、复制或调用生产 Rust `raxc` 的 parser、normalizer、类型检查器或测试 helper。
 
@@ -12,7 +12,8 @@
 4. 对 enum、record、table、node 与 contract 的每个 `definition` 重放 canonical bytes，并按对应 domain 加 `NUL` 后重算 SHA-256 ID；
 5. 建立 enum / record / table 声明索引，核对声明引用、record field、table primary key、节点前驱、输出节点、接口引用、节点 DAG 与非 input 死节点；
 6. 在完整声明和节点索引上独立推导 18 个锁定 expression op 的返回类型，核对无名称绑定环境、字段、操作数、分支、表 binder、lookup key，并要求 filter predicate 与 formula contract 顶层为 `Bool`；
-7. 对完整 canonical 原始字节按 `axiom-ir-v0.1:document` domain 重算文档摘要，并与调用方提供的外部身份显式比较。
+7. 核对 filter / map / lookup_join / group 的输出字段覆盖、projection 类型、主键保存 / 重命名、容量关系、join pair 与 group key / aggregate 声明关系；
+8. 对完整 canonical 原始字节按 `axiom-ir-v0.1:document` domain 重算文档摘要，并与调用方提供的外部身份显式比较。
 
 raw content SHA-256 与 Axiom IR document domain SHA-256 是两个不可互换的身份。Git commit / tree 只作来源追溯，也不能替代任一协议 SHA-256。
 
@@ -63,9 +64,21 @@ Axiom IR v0.1 规范中尚未被锁定语料使用的 `fixed`、`option`、`reco
 
 契约专用表操作继续在 node scope 失败关闭。`forall_rows`、`count_where`、`sum_where` 把目标表 record 插入环境索引 0，并分别要求 Bool body / predicate 和非可选 `Int` sum value；`lookup.keys` 必须与目标表 primary key 的有序字段逐项等型且 arity 完全相同；`match_option` 只接受已推导的 `Option<Record>`，并只在 `some` 分支插入内部 record。`filter.predicate` 和 `formula.expression` 顶层必须是 `Bool`；`map` / `lookup_join` 的每个 projection expression 必须能独立推导出类型。
 
+### 节点 table type 与字段覆盖
+
+节点关系检查在全部 node、record 与 table 声明解析完成后按 canonical node ID 顺序运行；map 只用于已知 ID / field 查找，不参与规范输出或失败顺序。
+
+- `input` 的 `table_type` 必须解析；它不产生文件、网络或其他宿主读取。
+- `filter` 的输出 record type 与有序 primary key 必须等于前驱，输出 capacity 不得大于前驱；predicate 的总定义性、筛选后实际基数和控制依赖仍是义务。
+- `map.fields` 必须恰好覆盖输出 record；每个 expression 的完整类型必须等于同名输出 field。输出 capacity 等于源表，输出 primary key 按位置由直接读取 source row 的源 primary key field 逐值保留或一一重命名，不能用同型常量、派生式或非键字段替代。
+- `lookup_join.pairs` 的左右 field 必须分别存在且完整类型相同；非键 pair 仍可静态良构，不在此冒充“每个左行恰好一个右匹配”。projection 与 map 同样闭合且等型，环境为 `[left_row, right_row]`；capacity 等于左表，输出 primary key 只能直接保留或重命名左表 primary key。
+- `group.keys` 按顺序恰好等于输出 primary key；源 field 必须存在、`public`、可键，输出同名 field 与源 field 完整等型。keys 与 aggregates 合计恰好覆盖输出 record，capacity 不得大于输入。`count` 输出类型固定为 `Int[0, source_capacity]`；当前 profile 的 `sum` 源 field 与输出 field 都必须为非可选 `Int`，但具体结果范围与守恒仍由后续义务判定。
+
+本切片不传播 projection / aggregate / predicate 的 field label，也不从敏感控制流推导输出 label。它不检查 filter 的更小 capacity 是否对所有输入足够，不证明 map / join key 的运行唯一性，不证明 join 存在性 / 唯一性，也不证明 group 范围、覆盖、不相交或守恒；这些都不能因静态关系通过而默认成功。
+
 ## 明确不形成的结论
 
-`ParseStructure` 的成功结果只包含 raw content digest、document domain digest 和顶层计数，不是 checker 四态结果。类型索引只在 parser 内用于良构核对；当前不检查 projection / group 对输出记录的字段覆盖、filter 输入输出同表、map / join / group 的节点输入输出表关系、容量关系、算术或聚合范围义务、连接恰好一次、控制依赖或非干扰语义；也不重建 obligation、不解释 Evidence、不消费 certificate、不执行 solver / Node、不累计全阶段 wall-clock / working-memory，不生成 binary、`checker.artifact`、result 或 CLI。
+`ParseStructure` 的成功结果只包含 raw content digest、document domain digest 和顶层计数，不是 checker 四态结果。类型索引只在 parser 内用于良构核对；当前不检查算术或聚合范围义务、连接恰好一次、行覆盖、标签 / 控制依赖、守恒或非干扰语义；也不重建 obligation、不解释 Evidence、不消费 certificate、不执行 solver / Node、不累计全阶段 wall-clock / working-memory，不生成 binary、`checker.artifact`、result 或 CLI。
 
 任何调用方都不得把结构解析成功升级为 `checked` 或 `proved`。声明范围外的 tag 和结构失败关闭；声明范围外的语义没有默认成功路径，因为当前仓库尚无形成接受结果的入口。
 
@@ -78,6 +91,7 @@ Axiom IR v0.1 规范中尚未被锁定语料使用的 `fixed`、`option`、`reco
 - 12 份唯一 IR 的 document domain digest 与锁定 bundle 中既有外部记录逐一比较，但不解释 Evidence 语义；
 - parser 负例覆盖未知 member / version / tag、语义数组非规范顺序、definition domain ID 漂移、悬空输出节点引用、document domain digest 不匹配，以及空 / 重复 enum、悬空 enum / record type、字段缺失 / 重复、未知标签、错误整数范围、空 / 重复 / 缺失 / sensitive primary key；
 - expression 负例均从合成 canonical definition 重算 domain ID，覆盖缺失字段、非 record field operand、错误 bound operand、Bool / `eq` / `le` / 算术 / 分支类型不一致、非 Bool filter / formula / table predicate、错误 `match_option` subject / branch、lookup key arity / type、非 Int sum value 及 node scope 表操作；
+- node relationship 负例同样重算全部受影响 definition domain ID，覆盖 filter record / primary key / capacity、projection 缺失 / 额外 / 类型、map / join key 保存与容量、join pair 字段 / 类型，以及 group capacity、key 字段 / 标签 / 类型 / 顺序、count bounds、sum source / output 类型和输出覆盖；
 - 严格字节层继续覆盖 object member 顺序及 JSON/JCS 负例。
 
 所有 Go 验证继续显式使用 `GOTOOLCHAIN=local` 与 `CGO_ENABLED=0`，源码变更后必须更新并审阅 `checker.source` manifest。

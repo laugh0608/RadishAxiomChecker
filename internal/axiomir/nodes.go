@@ -98,9 +98,11 @@ func (p *parser) parseNodeDefinition(value strictjson.Value, id protocol.Digest)
 			return err
 		}
 		definition.expressions = expressions
-		if err := parseJoinPairs(fields["pairs"]); err != nil {
+		pairs, err := parseJoinPairs(fields["pairs"])
+		if err != nil {
 			return err
 		}
+		definition.joinPairs = pairs
 	case "group":
 		fields, err := object(value, "aggregates", "keys", "kind", "source", "table_type")
 		if err != nil {
@@ -116,13 +118,16 @@ func (p *parser) parseNodeDefinition(value strictjson.Value, id protocol.Digest)
 			return err
 		}
 		definition.tableType = tableType
-		keyNames, err := parseGroupKeys(fields["keys"])
+		keys, err := parseGroupKeys(fields["keys"])
 		if err != nil {
 			return err
 		}
-		if err := parseAggregates(fields["aggregates"], keyNames); err != nil {
+		aggregates, err := parseAggregates(fields["aggregates"], keys)
+		if err != nil {
 			return err
 		}
+		definition.groupKeys = keys
+		definition.aggregates = aggregates
 	default:
 		return rejection.New(rejection.UnknownTag, "node kind is outside the locked Axiom IR structure profile")
 	}
@@ -168,43 +173,45 @@ func (p *parser) parseProjectionFields(value strictjson.Value, depth uint64) ([]
 		if _, err := p.parseExpression(fields["expression"], depth, nodeExpression); err != nil {
 			return nil, err
 		}
-		expressions = append(expressions, nodeExpressionCheck{value: fields["expression"]})
+		expressions = append(expressions, nodeExpressionCheck{fieldName: fieldName, value: fields["expression"]})
 	}
 	return expressions, nil
 }
 
-func parseJoinPairs(value strictjson.Value) error {
+func parseJoinPairs(value strictjson.Value) ([]joinPair, error) {
 	items, err := array(value)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(items) == 0 {
-		return rejection.New(rejection.InvalidJSON, "lookup_join pairs must not be empty")
+		return nil, rejection.New(rejection.InvalidJSON, "lookup_join pairs must not be empty")
 	}
+	result := make([]joinPair, 0, len(items))
 	var previous string
 	for index, item := range items {
 		fields, err := object(item, "left", "right")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		left, err := name(fields["left"])
 		if err != nil {
-			return err
+			return nil, err
 		}
 		right, err := name(fields["right"])
 		if err != nil {
-			return err
+			return nil, err
 		}
 		pair := left + "\x00" + right
 		if err := requireStrictOrder(previous, pair, index != 0, "lookup_join pairs are not sorted and unique"); err != nil {
-			return err
+			return nil, err
 		}
 		previous = pair
+		result = append(result, joinPair{left: left, right: right})
 	}
-	return nil
+	return result, nil
 }
 
-func parseGroupKeys(value strictjson.Value) (map[string]struct{}, error) {
+func parseGroupKeys(value strictjson.Value) ([]groupKey, error) {
 	items, err := array(value)
 	if err != nil {
 		return nil, err
@@ -212,7 +219,8 @@ func parseGroupKeys(value strictjson.Value) (map[string]struct{}, error) {
 	if len(items) == 0 {
 		return nil, rejection.New(rejection.InvalidJSON, "group keys must not be empty")
 	}
-	result := make(map[string]struct{}, len(items))
+	result := make([]groupKey, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
 	for _, item := range items {
 		fields, err := object(item, "name", "source_field")
 		if err != nil {
@@ -222,67 +230,77 @@ func parseGroupKeys(value strictjson.Value) (map[string]struct{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		if _, err := name(fields["source_field"]); err != nil {
+		sourceField, err := name(fields["source_field"])
+		if err != nil {
 			return nil, err
 		}
-		if _, exists := result[keyName]; exists {
+		if _, exists := seen[keyName]; exists {
 			return nil, rejection.New(rejection.InvalidJSON, "group key names must be unique")
 		}
-		result[keyName] = struct{}{}
+		seen[keyName] = struct{}{}
+		result = append(result, groupKey{name: keyName, sourceField: sourceField})
 	}
 	return result, nil
 }
 
-func parseAggregates(value strictjson.Value, keyNames map[string]struct{}) error {
+func parseAggregates(value strictjson.Value, keys []groupKey) ([]groupAggregate, error) {
 	items, err := array(value)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	keyNames := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		keyNames[key.name] = struct{}{}
+	}
+	result := make([]groupAggregate, 0, len(items))
 	var previous string
 	for index, item := range items {
 		kindValue, err := member(item, "kind")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		kind, err := text(kindValue)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		var aggregateName string
+		var aggregate groupAggregate
+		aggregate.kind = kind
 		switch kind {
 		case "count":
 			fields, err := object(item, "kind", "name")
 			if err != nil {
-				return err
+				return nil, err
 			}
-			aggregateName, err = name(fields["name"])
+			aggregate.name, err = name(fields["name"])
 			if err != nil {
-				return err
+				return nil, err
 			}
 		case "sum":
 			fields, err := object(item, "field", "kind", "name")
 			if err != nil {
-				return err
+				return nil, err
 			}
-			if _, err := name(fields["field"]); err != nil {
-				return err
-			}
-			aggregateName, err = name(fields["name"])
+			aggregate.field, err = name(fields["field"])
 			if err != nil {
-				return err
+				return nil, err
+			}
+			aggregate.name, err = name(fields["name"])
+			if err != nil {
+				return nil, err
 			}
 		default:
-			return rejection.New(rejection.UnknownTag, "unknown group aggregate kind")
+			return nil, rejection.New(rejection.UnknownTag, "unknown group aggregate kind")
 		}
-		if err := requireStrictOrder(previous, aggregateName, index != 0, "group aggregates are not sorted and unique by name"); err != nil {
-			return err
+		if err := requireStrictOrder(previous, aggregate.name, index != 0, "group aggregates are not sorted and unique by name"); err != nil {
+			return nil, err
 		}
-		if _, exists := keyNames[aggregateName]; exists {
-			return rejection.New(rejection.InvalidJSON, "group aggregate name conflicts with a key name")
+		if _, exists := keyNames[aggregate.name]; exists {
+			return nil, rejection.New(rejection.InvalidJSON, "group aggregate name conflicts with a key name")
 		}
-		previous = aggregateName
+		previous = aggregate.name
+		result = append(result, aggregate)
 	}
-	return nil
+	return result, nil
 }
 
 func (p *parser) parseOutputs(value strictjson.Value) (int, error) {
