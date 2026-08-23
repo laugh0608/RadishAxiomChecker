@@ -1,0 +1,23 @@
+{
+  "benchmark_id": "AX-B03",
+  "data_version": "0.1",
+  "format": "axiom-benchmark-data",
+  "role": "golden-output",
+  "tables": [
+    {
+      "name": "account_usage",
+      "rows": [
+        {
+          "account_id": "A1",
+          "event_count": "2",
+          "total_units": "10"
+        },
+        {
+          "account_id": "A2",
+          "event_count": "1",
+          "total_units": "3"
+        }
+      ]
+    }
+  ]
+}

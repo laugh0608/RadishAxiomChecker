@@ -1,0 +1,12 @@
+{
+  "benchmark_id": "AX-B03",
+  "data_version": "0.1",
+  "format": "axiom-benchmark-data",
+  "role": "input",
+  "tables": [
+    {
+      "name": "usage_events",
+      "rows": []
+    }
+  ]
+}

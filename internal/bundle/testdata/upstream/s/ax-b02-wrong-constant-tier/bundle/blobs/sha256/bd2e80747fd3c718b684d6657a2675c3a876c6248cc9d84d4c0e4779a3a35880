@@ -1,0 +1,21 @@
+{
+  "benchmark_id": "AX-B02",
+  "data_version": "0.1",
+  "format": "axiom-benchmark-data",
+  "role": "golden-output",
+  "tables": [
+    {
+      "name": "order_tiers",
+      "rows": [
+        {
+          "order_id": "O1",
+          "tier": "gold"
+        },
+        {
+          "order_id": "O2",
+          "tier": "silver"
+        }
+      ]
+    }
+  ]
+}

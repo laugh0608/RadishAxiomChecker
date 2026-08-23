@@ -1,0 +1,21 @@
+{
+  "benchmark_id": "AX-B01",
+  "data_version": "0.1",
+  "format": "axiom-benchmark-data",
+  "role": "golden-output",
+  "tables": [
+    {
+      "name": "net_orders",
+      "rows": [
+        {
+          "net_cents": "900",
+          "order_id": "O1"
+        },
+        {
+          "net_cents": "0",
+          "order_id": "O3"
+        }
+      ]
+    }
+  ]
+}

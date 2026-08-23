@@ -1,0 +1,19 @@
+{
+  "benchmark_id": "AX-B01",
+  "data_version": "0.1",
+  "format": "axiom-benchmark-data",
+  "role": "invalid-input",
+  "tables": [
+    {
+      "name": "orders",
+      "rows": [
+        {
+          "discount_cents": "101",
+          "order_id": "OX",
+          "state": "settled",
+          "subtotal_cents": "100"
+        }
+      ]
+    }
+  ]
+}

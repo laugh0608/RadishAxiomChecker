@@ -1,0 +1,28 @@
+{
+  "benchmark_id": "AX-B02",
+  "data_version": "0.1",
+  "format": "axiom-benchmark-data",
+  "role": "input",
+  "tables": [
+    {
+      "name": "customers",
+      "rows": [
+        {
+          "customer_id": "C3",
+          "region": "south",
+          "tier": "gold"
+        }
+      ]
+    },
+    {
+      "name": "orders",
+      "rows": [
+        {
+          "customer_id": "C3",
+          "order_id": "O3",
+          "region": "south"
+        }
+      ]
+    }
+  ]
+}

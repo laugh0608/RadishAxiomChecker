@@ -1,0 +1,38 @@
+{
+  "benchmark_id": "AX-B02",
+  "data_version": "0.1",
+  "format": "axiom-benchmark-data",
+  "role": "input",
+  "tables": [
+    {
+      "name": "customers",
+      "rows": [
+        {
+          "customer_id": "C1",
+          "region": "north",
+          "tier": "gold"
+        },
+        {
+          "customer_id": "C2",
+          "region": "north",
+          "tier": "silver"
+        }
+      ]
+    },
+    {
+      "name": "orders",
+      "rows": [
+        {
+          "customer_id": "C1",
+          "order_id": "O1",
+          "region": "north"
+        },
+        {
+          "customer_id": "C2",
+          "order_id": "O2",
+          "region": "north"
+        }
+      ]
+    }
+  ]
+}

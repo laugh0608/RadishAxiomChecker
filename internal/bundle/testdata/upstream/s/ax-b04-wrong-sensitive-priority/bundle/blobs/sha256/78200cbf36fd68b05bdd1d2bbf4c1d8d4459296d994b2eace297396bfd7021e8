@@ -1,0 +1,23 @@
+{
+  "benchmark_id": "AX-B04",
+  "data_version": "0.1",
+  "format": "axiom-benchmark-data",
+  "role": "golden-output",
+  "tables": [
+    {
+      "name": "export",
+      "rows": [
+        {
+          "category": "billing",
+          "priority": "high",
+          "ticket_id": "T1"
+        },
+        {
+          "category": "support",
+          "priority": "low",
+          "ticket_id": "T2"
+        }
+      ]
+    }
+  ]
+}
