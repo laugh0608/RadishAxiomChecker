@@ -34,8 +34,17 @@ func (p *parser) parseContractDefinition(value strictjson.Value, _ protocol.Dige
 		default:
 			return rejection.New(rejection.UnknownTag, "unknown formula contract role")
 		}
-		_, err = p.parseExpression(fields["expression"], 0, scope)
-		return err
+		if _, err := p.parseExpression(fields["expression"], 0, scope); err != nil {
+			return err
+		}
+		formulaType, err := p.inferExpression(fields["expression"], nil, scope)
+		if err != nil {
+			return err
+		}
+		if formulaType.kind != boolValue {
+			return rejection.New(rejection.InvalidJSON, "formula contract expression must be Bool")
+		}
+		return nil
 	case "noninterference":
 		fields, err := object(value, "inputs", "kind", "outputs")
 		if err != nil {

@@ -20,16 +20,36 @@ const (
 	intValue
 	textValue
 	enumValue
+	recordValue
+	optionRecordValue
 )
 
 type valueType struct {
-	kind     valueKind
-	lower    string
-	upper    string
-	enumType protocol.Digest
+	kind       valueKind
+	lower      string
+	upper      string
+	enumType   protocol.Digest
+	recordType protocol.Digest
+}
+
+func (value valueType) equal(other valueType) bool {
+	return value.kind == other.kind &&
+		value.lower == other.lower &&
+		value.upper == other.upper &&
+		value.enumType == other.enumType &&
+		value.recordType == other.recordType
 }
 
 func (value valueType) keyCompatible() bool {
+	switch value.kind {
+	case boolValue, intValue, textValue, enumValue:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value valueType) equalityCompatible() bool {
 	switch value.kind {
 	case boolValue, intValue, textValue, enumValue:
 		return true
@@ -64,6 +84,13 @@ type tableDefinition struct {
 type nodeDefinition struct {
 	kind         string
 	predecessors []protocol.Digest
+	tableType    protocol.Digest
+	expressions  []nodeExpressionCheck
+}
+
+type nodeExpressionCheck struct {
+	value       strictjson.Value
+	requireBool bool
 }
 
 type parser struct {
@@ -71,15 +98,17 @@ type parser struct {
 	records     map[protocol.Digest]recordDefinition
 	tables      map[protocol.Digest]tableDefinition
 	nodes       map[protocol.Digest]nodeDefinition
+	nodeOrder   []protocol.Digest
 	inputPorts  map[string]protocol.Digest
 	outputNames map[string]protocol.Digest
 }
 
 // ParseStructure parses canonical Axiom IR v0.1 bytes and verifies the closed
 // structure profile documented by this package, all content-addressed entry
-// IDs and references, checks declaration and primary-key well-formedness plus
-// node DAG shape, and recomputes document-domain identity. It does not verify
-// expression/node typed semantics or rebuild obligations.
+// IDs and references, checks declaration and primary-key well-formedness,
+// expression typing, node DAG shape, and recomputes document-domain identity.
+// It does not verify complete node input/output table relationships or rebuild
+// obligations.
 func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 	value, err := strictjson.ParseCanonical(data, limits)
 	if err != nil {
@@ -117,6 +146,7 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 		records:     make(map[protocol.Digest]recordDefinition),
 		tables:      make(map[protocol.Digest]tableDefinition),
 		nodes:       make(map[protocol.Digest]nodeDefinition),
+		nodeOrder:   make([]protocol.Digest, 0),
 		inputPorts:  make(map[string]protocol.Digest),
 		outputNames: make(map[string]protocol.Digest),
 	}
@@ -141,6 +171,9 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 		return Document{}, err
 	}
 	if err := p.validateNodeGraph(); err != nil {
+		return Document{}, err
+	}
+	if err := p.validateNodeExpressionTypes(); err != nil {
 		return Document{}, err
 	}
 	contractCount, err := p.parseEntries(root["contracts"], domainContract, p.parseContractDefinition)

@@ -29,9 +29,11 @@ func (p *parser) parseNodeDefinition(value strictjson.Value, id protocol.Digest)
 		if _, exists := p.inputPorts[port]; exists {
 			return rejection.New(rejection.InvalidJSON, "input port names must be unique")
 		}
-		if err := p.requireTableType(fields["table_type"]); err != nil {
+		tableType, err := p.requireTableType(fields["table_type"])
+		if err != nil {
 			return err
 		}
+		definition.tableType = tableType
 		p.inputPorts[port] = id
 	case "filter":
 		fields, err := object(value, "kind", "predicate", "source", "table_type")
@@ -43,12 +45,15 @@ func (p *parser) parseNodeDefinition(value strictjson.Value, id protocol.Digest)
 			return err
 		}
 		definition.predecessors = []protocol.Digest{source}
-		if err := p.requireTableType(fields["table_type"]); err != nil {
+		tableType, err := p.requireTableType(fields["table_type"])
+		if err != nil {
 			return err
 		}
+		definition.tableType = tableType
 		if _, err := p.parseExpression(fields["predicate"], 1, nodeExpression); err != nil {
 			return err
 		}
+		definition.expressions = []nodeExpressionCheck{{value: fields["predicate"], requireBool: true}}
 	case "map":
 		fields, err := object(value, "fields", "kind", "source", "table_type")
 		if err != nil {
@@ -59,12 +64,16 @@ func (p *parser) parseNodeDefinition(value strictjson.Value, id protocol.Digest)
 			return err
 		}
 		definition.predecessors = []protocol.Digest{source}
-		if err := p.requireTableType(fields["table_type"]); err != nil {
+		tableType, err := p.requireTableType(fields["table_type"])
+		if err != nil {
 			return err
 		}
-		if err := p.parseProjectionFields(fields["fields"], 1); err != nil {
+		definition.tableType = tableType
+		expressions, err := p.parseProjectionFields(fields["fields"], 1)
+		if err != nil {
 			return err
 		}
+		definition.expressions = expressions
 	case "lookup_join":
 		fields, err := object(value, "fields", "kind", "left", "pairs", "right", "table_type")
 		if err != nil {
@@ -79,12 +88,16 @@ func (p *parser) parseNodeDefinition(value strictjson.Value, id protocol.Digest)
 			return err
 		}
 		definition.predecessors = []protocol.Digest{left, right}
-		if err := p.requireTableType(fields["table_type"]); err != nil {
+		tableType, err := p.requireTableType(fields["table_type"])
+		if err != nil {
 			return err
 		}
-		if err := p.parseProjectionFields(fields["fields"], 2); err != nil {
+		definition.tableType = tableType
+		expressions, err := p.parseProjectionFields(fields["fields"], 2)
+		if err != nil {
 			return err
 		}
+		definition.expressions = expressions
 		if err := parseJoinPairs(fields["pairs"]); err != nil {
 			return err
 		}
@@ -98,9 +111,11 @@ func (p *parser) parseNodeDefinition(value strictjson.Value, id protocol.Digest)
 			return err
 		}
 		definition.predecessors = []protocol.Digest{source}
-		if err := p.requireTableType(fields["table_type"]); err != nil {
+		tableType, err := p.requireTableType(fields["table_type"])
+		if err != nil {
 			return err
 		}
+		definition.tableType = tableType
 		keyNames, err := parseGroupKeys(fields["keys"])
 		if err != nil {
 			return err
@@ -112,47 +127,50 @@ func (p *parser) parseNodeDefinition(value strictjson.Value, id protocol.Digest)
 		return rejection.New(rejection.UnknownTag, "node kind is outside the locked Axiom IR structure profile")
 	}
 	p.nodes[id] = definition
+	p.nodeOrder = append(p.nodeOrder, id)
 	return nil
 }
 
-func (p *parser) requireTableType(value strictjson.Value) error {
+func (p *parser) requireTableType(value strictjson.Value) (protocol.Digest, error) {
 	tableType, err := digest(value)
 	if err != nil {
-		return err
+		return protocol.Digest{}, err
 	}
 	if _, exists := p.tables[tableType]; !exists {
-		return rejection.New(rejection.InvalidJSON, "node table type reference does not resolve")
+		return protocol.Digest{}, rejection.New(rejection.InvalidJSON, "node table type reference does not resolve")
 	}
-	return nil
+	return tableType, nil
 }
 
-func (p *parser) parseProjectionFields(value strictjson.Value, depth uint64) error {
+func (p *parser) parseProjectionFields(value strictjson.Value, depth uint64) ([]nodeExpressionCheck, error) {
 	items, err := array(value)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(items) == 0 {
-		return rejection.New(rejection.InvalidJSON, "projection fields must not be empty")
+		return nil, rejection.New(rejection.InvalidJSON, "projection fields must not be empty")
 	}
+	expressions := make([]nodeExpressionCheck, 0, len(items))
 	var previous string
 	for index, item := range items {
 		fields, err := object(item, "expression", "name")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		fieldName, err := name(fields["name"])
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := requireStrictOrder(previous, fieldName, index != 0, "projection fields are not sorted and unique by name"); err != nil {
-			return err
+			return nil, err
 		}
 		previous = fieldName
 		if _, err := p.parseExpression(fields["expression"], depth, nodeExpression); err != nil {
-			return err
+			return nil, err
 		}
+		expressions = append(expressions, nodeExpressionCheck{value: fields["expression"]})
 	}
-	return nil
+	return expressions, nil
 }
 
 func parseJoinPairs(value strictjson.Value) error {

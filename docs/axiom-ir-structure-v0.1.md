@@ -1,4 +1,4 @@
-# Axiom IR v0.1 严格结构切片
+# Axiom IR v0.1 严格结构与表达式类型切片
 
 本文冻结独立 checker 首个 Axiom IR parser 的实际声明范围。规范真相源仍是 RadishAxiom 主仓库按摘要锁定的 `docs/ir/axiom-ir-v0.md`；本实现没有导入、复制或调用生产 Rust `raxc` 的 parser、normalizer、类型检查器或测试 helper。
 
@@ -11,7 +11,8 @@
 3. IR 层拒绝未知 member、版本、tag、摘要算法、语义身份和非空效果；
 4. 对 enum、record、table、node 与 contract 的每个 `definition` 重放 canonical bytes，并按对应 domain 加 `NUL` 后重算 SHA-256 ID；
 5. 建立 enum / record / table 声明索引，核对声明引用、record field、table primary key、节点前驱、输出节点、接口引用、节点 DAG 与非 input 死节点；
-6. 对完整 canonical 原始字节按 `axiom-ir-v0.1:document` domain 重算文档摘要，并与调用方提供的外部身份显式比较。
+6. 在完整声明和节点索引上独立推导 18 个锁定 expression op 的返回类型，核对无名称绑定环境、字段、操作数、分支、表 binder、lookup key，并要求 filter predicate 与 formula contract 顶层为 `Bool`；
+7. 对完整 canonical 原始字节按 `axiom-ir-v0.1:document` domain 重算文档摘要，并与调用方提供的外部身份显式比较。
 
 raw content SHA-256 与 Axiom IR document domain SHA-256 是两个不可互换的身份。Git commit / tree 只作来源追溯，也不能替代任一协议 SHA-256。
 
@@ -48,9 +49,23 @@ parser 在 definition domain ID 核对之外独立保存当前 profile 的闭合
 
 Axiom IR v0.1 规范中尚未被锁定语料使用的 `fixed`、`option`、`record` value type，以及相应 literal / constructor、`or`、其他比较、fixed 算术、`exists_rows` 等 tag，在本切片中失败关闭为 `unknown-tag`。后续只能通过单独的小切片、正负例和源码身份重放扩大该集合，不能静默忽略或按相近 tag 解释。
 
+### 独立表达式类型推导
+
+类型检查器不调用生产 parser、normalizer、类型检查器或测试 helper；它在严格结构检查完成后重新遍历闭合 expression object，并以显式 switch 处理上述 18 个 op。`valueType` 保存完整 `Int` 上下界和名义 enum ID，因此相等类型不是只比较宽泛 kind。`Record` 与 `Option<Record>` 只作为 table binder、`lookup` 和 `match_option` 的内部推导类型，不扩大可声明 value type 或表面 tag 集合。
+
+节点初始环境固定为：
+
+- `filter` / `map`：前驱节点声明表的 `[source_row]`；
+- `lookup_join` projection：两个前驱节点声明表的 `[left_row, right_row]`；
+- contract 顶层：`[]`。
+
+`bound` 按无名称索引取得完整类型；`field` 只接受 record 并要求字段存在。Bool literal / `not` / `and`、同型基础值 `eq`、同型 `Int` 的 `le` / `int_add` / `int_sub`、`if` 的 Bool condition 和同型分支都被核对。当前 profile 没有可由表达式构造的 `Option<Text>` 等类型；`lookup` 产生的 `Option<Record>` 也不能借 `eq` 获得规范未定义的 record 通用相等。
+
+契约专用表操作继续在 node scope 失败关闭。`forall_rows`、`count_where`、`sum_where` 把目标表 record 插入环境索引 0，并分别要求 Bool body / predicate 和非可选 `Int` sum value；`lookup.keys` 必须与目标表 primary key 的有序字段逐项等型且 arity 完全相同；`match_option` 只接受已推导的 `Option<Record>`，并只在 `some` 分支插入内部 record。`filter.predicate` 和 `formula.expression` 顶层必须是 `Bool`；`map` / `lookup_join` 的每个 projection expression 必须能独立推导出类型。
+
 ## 明确不形成的结论
 
-`ParseStructure` 的成功结果只包含 raw content digest、document domain digest 和顶层计数，不是 checker 四态结果。声明索引只在 parser 内用于良构核对；当前不检查完整表达式类型推导、projection / group 对输出记录的字段覆盖、节点输入输出类型关系、容量关系、算术或聚合义务、连接恰好一次、控制依赖或非干扰语义；也不重建 obligation、不解释 Evidence、不消费 certificate、不执行 solver / Node、不累计全阶段 wall-clock / working-memory，不生成 binary、`checker.artifact`、result 或 CLI。
+`ParseStructure` 的成功结果只包含 raw content digest、document domain digest 和顶层计数，不是 checker 四态结果。类型索引只在 parser 内用于良构核对；当前不检查 projection / group 对输出记录的字段覆盖、filter 输入输出同表、map / join / group 的节点输入输出表关系、容量关系、算术或聚合范围义务、连接恰好一次、控制依赖或非干扰语义；也不重建 obligation、不解释 Evidence、不消费 certificate、不执行 solver / Node、不累计全阶段 wall-clock / working-memory，不生成 binary、`checker.artifact`、result 或 CLI。
 
 任何调用方都不得把结构解析成功升级为 `checked` 或 `proved`。声明范围外的 tag 和结构失败关闭；声明范围外的语义没有默认成功路径，因为当前仓库尚无形成接受结果的入口。
 
@@ -61,6 +76,8 @@ Axiom IR v0.1 规范中尚未被锁定语料使用的 `fixed`、`option`、`reco
 - 25 个身份有效场景进入 IR parser；它们覆盖 12 份唯一 IR 原始字节；
 - `chk-bundle-01`、`chk-digest-01`、`chk-resource-01` 分别在缺失 artifact、raw content SHA-256、资源限制层拒绝，parser 不得越过这些失败；
 - 12 份唯一 IR 的 document domain digest 与锁定 bundle 中既有外部记录逐一比较，但不解释 Evidence 语义；
-- parser 负例覆盖未知 member / version / tag、语义数组非规范顺序、definition domain ID 漂移、悬空输出节点引用、document domain digest 不匹配，以及空 / 重复 enum、悬空 enum / record type、字段缺失 / 重复、未知标签、错误整数范围、空 / 重复 / 缺失 / sensitive primary key；严格字节层继续覆盖 object member 顺序及 JSON/JCS 负例。
+- parser 负例覆盖未知 member / version / tag、语义数组非规范顺序、definition domain ID 漂移、悬空输出节点引用、document domain digest 不匹配，以及空 / 重复 enum、悬空 enum / record type、字段缺失 / 重复、未知标签、错误整数范围、空 / 重复 / 缺失 / sensitive primary key；
+- expression 负例均从合成 canonical definition 重算 domain ID，覆盖缺失字段、非 record field operand、错误 bound operand、Bool / `eq` / `le` / 算术 / 分支类型不一致、非 Bool filter / formula / table predicate、错误 `match_option` subject / branch、lookup key arity / type、非 Int sum value 及 node scope 表操作；
+- 严格字节层继续覆盖 object member 顺序及 JSON/JCS 负例。
 
 所有 Go 验证继续显式使用 `GOTOOLCHAIN=local` 与 `CGO_ENABLED=0`，源码变更后必须更新并审阅 `checker.source` manifest。
