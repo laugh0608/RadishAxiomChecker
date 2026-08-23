@@ -2,15 +2,16 @@
 
 这是 RadishAxiom 独立 checker 的 Go 实现仓库。它与生产 Rust `raxc` 分仓、分依赖图和分发布流水线，输入只来自版本化协议和按摘要锁定的测试制品。
 
-当前只实现两个拒绝优先的小切片：
+当前只实现三个拒绝优先的小切片：
 
 - 不依赖 `encoding/json` 的字节级严格 JSON / RFC 8785 JCS 外壳；
 - `axiom-check-request` `0.1` 与 `axiom-check-bundle-manifest` `0.1` 的闭合解析；
 - 只读 bundle 布局、普通文件、声明长度、原始 SHA-256、manifest 覆盖和 request 绑定检查；
 - 独立导入且由摘要锁定的 RadishAxiom 合同 fixture。
 - [`checker.source` v0.1](docs/checker-source-v0.1.md) 的闭合仓库输入集合、canonical manifest、原始字节 SHA-256 复算和失败关闭门禁。
+- [Axiom IR v0.1 严格结构切片](docs/axiom-ir-structure-v0.1.md)：对已锁定 keyed-finite-table profile 核对 canonical 字节、闭合 tag、全部 definition domain ID、节点引用 / DAG / 可达性及完整文档 domain digest。
 
-本轮源码身份不把 Git commit / tree 当成 `checker.source`，也不生成 checker binary 或 `checker.artifact`。当前实现仍不解析 Axiom IR 或 Axiom Evidence 语义，不重建 obligation，不检查 certificate，也不生成四态独立结果或产品 CLI。测试通过仅表示这些实现路径被检查，不构成形式证明或跨平台结论。
+Git commit / tree 不充当 `checker.source`，仓库也不生成 checker binary 或 `checker.artifact`。Axiom IR 结构通过不等于语义接受：当前实现仍不执行完整类型 / 首域语义检查，不解析 Axiom Evidence 语义，不重建 obligation，不检查 certificate，也不生成四态独立结果或产品 CLI。测试通过仅表示这些实现路径被检查，不构成形式证明或跨平台结论。
 
 当前资源实现只收口该 parser 切片实际消费的边界：request/manifest 单文档字节、JSON 容器深度、JSON 成员/元素、严格 JSON token、单 artifact 字节、manifest 唯一 artifact 总字节和流式 SHA-256。`wall-clock` 与逻辑 `working-memory` 字段会被闭合解析，但完整的跨阶段累计计数、内部 `incomplete` 结果形成和外层进程限制仍属于后续切片；这里不会把未实现的计数伪装成已执行。
 

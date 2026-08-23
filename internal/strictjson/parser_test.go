@@ -31,6 +31,38 @@ func TestParseCanonicalAcceptsProfileValues(t *testing.T) {
 	}
 }
 
+func TestCanonicalBytesReplaysAcceptedInput(t *testing.T) {
+	tests := [][]byte{
+		[]byte(`{}`),
+		[]byte(`[]`),
+		[]byte(`true`),
+		[]byte(`false`),
+		[]byte(`"text"`),
+		[]byte(`"\u0000\b\t\n\f\r\"\\"`),
+		[]byte(`{"a":[],"b":{"c":"世界"}}`),
+		[]byte("{\"𐀀\":false,\"\":true}"),
+	}
+	for _, data := range tests {
+		value, err := ParseCanonical(data, testLimits)
+		if err != nil {
+			t.Fatalf("ParseCanonical(%q): %v", data, err)
+		}
+		got, err := CanonicalBytes(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != string(data) {
+			t.Fatalf("CanonicalBytes() = %q, want %q", got, data)
+		}
+	}
+}
+
+func TestCanonicalBytesRejectsInvalidValue(t *testing.T) {
+	if _, err := CanonicalBytes(Value{}); err == nil {
+		t.Fatal("expected invalid zero value to be rejected")
+	}
+}
+
 func TestParseCanonicalRejectsNoncanonicalOrForbiddenInput(t *testing.T) {
 	tests := []struct {
 		name string
