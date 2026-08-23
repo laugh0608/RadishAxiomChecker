@@ -48,6 +48,7 @@ func (p *parser) parseRecordDefinition(value strictjson.Value, id protocol.Diges
 	if len(items) == 0 {
 		return rejection.New(rejection.InvalidJSON, "record fields must not be empty")
 	}
+	recordFields := make(map[string]fieldDefinition, len(items))
 	var previous string
 	for index, item := range items {
 		field, err := object(item, "label", "name", "type")
@@ -62,18 +63,26 @@ func (p *parser) parseRecordDefinition(value strictjson.Value, id protocol.Diges
 			return err
 		}
 		previous = fieldName
-		label, err := text(field["label"])
+		labelText, err := text(field["label"])
 		if err != nil {
 			return err
 		}
-		if label != "public" && label != "sensitive" {
+		var label fieldLabel
+		switch labelText {
+		case "public":
+			label = publicLabel
+		case "sensitive":
+			label = sensitiveLabel
+		default:
 			return rejection.New(rejection.UnknownTag, "unknown record field label")
 		}
-		if _, err := p.parseValueType(field["type"]); err != nil {
+		fieldType, err := p.parseValueType(field["type"])
+		if err != nil {
 			return err
 		}
+		recordFields[fieldName] = fieldDefinition{label: label, typeInfo: fieldType}
 	}
-	p.records[id] = struct{}{}
+	p.records[id] = recordDefinition{fields: recordFields}
 	return nil
 }
 
@@ -85,11 +94,16 @@ func (p *parser) parseTableDefinition(value strictjson.Value, id protocol.Digest
 	if _, err := canonicalInteger(fields["capacity"], true); err != nil {
 		return err
 	}
+	capacity, err := text(fields["capacity"])
+	if err != nil {
+		return err
+	}
 	recordType, err := digest(fields["record_type"])
 	if err != nil {
 		return err
 	}
-	if _, exists := p.records[recordType]; !exists {
+	record, exists := p.records[recordType]
+	if !exists {
 		return rejection.New(rejection.InvalidJSON, "table record type reference does not resolve")
 	}
 	primaryKey, err := array(fields["primary_key"])
@@ -100,6 +114,7 @@ func (p *parser) parseTableDefinition(value strictjson.Value, id protocol.Digest
 		return rejection.New(rejection.InvalidJSON, "table primary key must not be empty")
 	}
 	seen := make(map[string]struct{}, len(primaryKey))
+	keyNames := make([]string, 0, len(primaryKey))
 	for _, item := range primaryKey {
 		fieldName, err := name(item)
 		if err != nil {
@@ -108,56 +123,78 @@ func (p *parser) parseTableDefinition(value strictjson.Value, id protocol.Digest
 		if _, exists := seen[fieldName]; exists {
 			return rejection.New(rejection.InvalidJSON, "table primary key fields must be unique")
 		}
+		definition, exists := record.fields[fieldName]
+		if !exists {
+			return rejection.New(rejection.InvalidJSON, "table primary key field does not exist in its record type")
+		}
+		if definition.label != publicLabel {
+			return rejection.New(rejection.InvalidJSON, "table primary key field must be public")
+		}
+		if !definition.typeInfo.keyCompatible() {
+			return rejection.New(rejection.InvalidJSON, "table primary key field type is not key-compatible")
+		}
 		seen[fieldName] = struct{}{}
+		keyNames = append(keyNames, fieldName)
 	}
-	p.tables[id] = struct{}{}
+	p.tables[id] = tableDefinition{
+		capacity:   capacity,
+		primaryKey: keyNames,
+		recordType: recordType,
+	}
 	return nil
 }
 
-func (p *parser) parseValueType(value strictjson.Value) (string, error) {
+func (p *parser) parseValueType(value strictjson.Value) (valueType, error) {
 	kindValue, err := member(value, "kind")
 	if err != nil {
-		return "", err
+		return valueType{}, err
 	}
 	kind, err := text(kindValue)
 	if err != nil {
-		return "", err
+		return valueType{}, err
 	}
 	switch kind {
-	case "bool", "text":
+	case "bool":
 		if _, err := object(value, "kind"); err != nil {
-			return "", err
+			return valueType{}, err
 		}
+		return valueType{kind: boolValue}, nil
+	case "text":
+		if _, err := object(value, "kind"); err != nil {
+			return valueType{}, err
+		}
+		return valueType{kind: textValue}, nil
 	case "int":
 		fields, err := object(value, "kind", "lower", "upper")
 		if err != nil {
-			return "", err
+			return valueType{}, err
 		}
 		lower, err := canonicalInteger(fields["lower"], false)
 		if err != nil {
-			return "", err
+			return valueType{}, err
 		}
 		upper, err := canonicalInteger(fields["upper"], false)
 		if err != nil {
-			return "", err
+			return valueType{}, err
 		}
 		if lower.Cmp(upper) > 0 {
-			return "", rejection.New(rejection.InvalidJSON, "integer type lower bound exceeds upper bound")
+			return valueType{}, rejection.New(rejection.InvalidJSON, "integer type lower bound exceeds upper bound")
 		}
+		return valueType{kind: intValue, lower: lower.String(), upper: upper.String()}, nil
 	case "enum":
 		fields, err := object(value, "enum_type", "kind")
 		if err != nil {
-			return "", err
+			return valueType{}, err
 		}
 		enumType, err := digest(fields["enum_type"])
 		if err != nil {
-			return "", err
+			return valueType{}, err
 		}
 		if _, exists := p.enums[enumType]; !exists {
-			return "", rejection.New(rejection.InvalidJSON, "enum type reference does not resolve")
+			return valueType{}, rejection.New(rejection.InvalidJSON, "enum type reference does not resolve")
 		}
+		return valueType{kind: enumValue, enumType: enumType}, nil
 	default:
-		return "", rejection.New(rejection.UnknownTag, "value type is outside the locked Axiom IR structure profile")
+		return valueType{}, rejection.New(rejection.UnknownTag, "value type is outside the locked Axiom IR structure profile")
 	}
-	return kind, nil
 }

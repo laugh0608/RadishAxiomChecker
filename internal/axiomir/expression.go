@@ -38,28 +38,24 @@ func (p *parser) parseExpression(value strictjson.Value, depth uint64, scope exp
 		if err != nil {
 			return "", err
 		}
-		kind, err := p.parseValueType(fields["type"])
+		literalType, err := p.parseValueType(fields["type"])
 		if err != nil {
 			return "", err
 		}
-		if kind != "int" {
+		if literalType.kind != intValue {
 			return "", rejection.New(rejection.InvalidJSON, "literal_int requires an int type")
 		}
 		integer, err := canonicalInteger(fields["value"], false)
 		if err != nil {
 			return "", err
 		}
-		typeFields, err := object(fields["type"], "kind", "lower", "upper")
-		if err != nil {
-			return "", err
+		lower, ok := new(big.Int).SetString(literalType.lower, 10)
+		if !ok {
+			return "", rejection.New(rejection.InvalidJSON, "literal_int type lower bound cannot be decoded")
 		}
-		lower, err := canonicalInteger(typeFields["lower"], false)
-		if err != nil {
-			return "", err
-		}
-		upper, err := canonicalInteger(typeFields["upper"], false)
-		if err != nil {
-			return "", err
+		upper, ok := new(big.Int).SetString(literalType.upper, 10)
+		if !ok {
+			return "", rejection.New(rejection.InvalidJSON, "literal_int type upper bound cannot be decoded")
 		}
 		if integer.Cmp(lower) < 0 || integer.Cmp(upper) > 0 {
 			return "", rejection.New(rejection.InvalidJSON, "literal_int value is outside its declared type")
@@ -177,7 +173,7 @@ func (p *parser) parseExpression(value strictjson.Value, depth uint64, scope exp
 		if err != nil {
 			return "", err
 		}
-		if err := p.parseResultType(fields["result_type"], "int"); err != nil {
+		if err := p.parseResultType(fields["result_type"], intValue); err != nil {
 			return "", err
 		}
 		values, err := array(fields["values"])
@@ -198,7 +194,7 @@ func (p *parser) parseExpression(value strictjson.Value, depth uint64, scope exp
 		if err != nil {
 			return "", err
 		}
-		if err := p.parseResultType(fields["result_type"], "int"); err != nil {
+		if err := p.parseResultType(fields["result_type"], intValue); err != nil {
 			return "", err
 		}
 		if _, err := p.parseExpression(fields["left"], depth, scope); err != nil {
@@ -271,7 +267,7 @@ func (p *parser) parseExpression(value strictjson.Value, depth uint64, scope exp
 		if err != nil {
 			return "", err
 		}
-		if err := p.parseResultType(fields["result_type"], "int"); err != nil {
+		if err := p.parseResultType(fields["result_type"], intValue); err != nil {
 			return "", err
 		}
 		if err := p.parseTableReference(fields["table"], scope); err != nil {
@@ -285,7 +281,7 @@ func (p *parser) parseExpression(value strictjson.Value, depth uint64, scope exp
 		if err != nil {
 			return "", err
 		}
-		if err := p.parseResultType(fields["result_type"], "int"); err != nil {
+		if err := p.parseResultType(fields["result_type"], intValue); err != nil {
 			return "", err
 		}
 		if err := p.parseTableReference(fields["table"], scope); err != nil {
@@ -312,12 +308,12 @@ func (p *parser) parseExpressions(values []strictjson.Value, depth uint64, scope
 	return nil
 }
 
-func (p *parser) parseResultType(value strictjson.Value, expected string) error {
-	kind, err := p.parseValueType(value)
+func (p *parser) parseResultType(value strictjson.Value, expected valueKind) error {
+	resultType, err := p.parseValueType(value)
 	if err != nil {
 		return err
 	}
-	if kind != expected {
+	if resultType.kind != expected {
 		return rejection.New(rejection.InvalidJSON, "expression result type has the wrong kind")
 	}
 	return nil
