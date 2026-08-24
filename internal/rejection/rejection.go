@@ -10,6 +10,7 @@ type Code string
 
 const (
 	ArtifactMissing            Code = "artifact-missing"
+	CounterexampleInvalid      Code = "counterexample-invalid"
 	DigestMismatch             Code = "digest-mismatch"
 	DuplicateArtifact          Code = "duplicate-artifact"
 	DuplicateMember            Code = "duplicate-member"

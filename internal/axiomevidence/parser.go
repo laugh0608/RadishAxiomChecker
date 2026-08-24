@@ -46,14 +46,15 @@ type proofSupport struct {
 }
 
 type obligationResult struct {
-	kind        string
-	artifacts   []protocol.Digest
-	assumptions []protocol.Digest
-	execution   protocol.Digest
-	attempts    []protocol.Digest
-	reason      string
-	support     proofSupport
-	trust       protocol.Digest
+	kind           string
+	artifacts      []protocol.Digest
+	assumptions    []protocol.Digest
+	execution      protocol.Digest
+	attempts       []protocol.Digest
+	reason         string
+	support        proofSupport
+	trust          protocol.Digest
+	counterexample *counterexampleDefinition
 }
 
 type trustDefinition struct {

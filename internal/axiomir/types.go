@@ -22,7 +22,8 @@ func (p *parser) parseEnumDefinition(value strictjson.Value, id protocol.Digest)
 		return rejection.New(rejection.InvalidJSON, "enum members must not be empty")
 	}
 	members := make(map[string]struct{}, len(items))
-	for _, item := range items {
+	memberOrder := make(map[string]int, len(items))
+	for index, item := range items {
 		memberName, err := name(item)
 		if err != nil {
 			return err
@@ -31,8 +32,9 @@ func (p *parser) parseEnumDefinition(value strictjson.Value, id protocol.Digest)
 			return rejection.New(rejection.InvalidJSON, "enum members must be unique")
 		}
 		members[memberName] = struct{}{}
+		memberOrder[memberName] = index
 	}
-	p.enums[id] = enumDefinition{members: members}
+	p.enums[id] = enumDefinition{members: members, memberOrder: memberOrder}
 	return nil
 }
 

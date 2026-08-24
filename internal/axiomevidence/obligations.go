@@ -277,11 +277,14 @@ func (p *parser) parseObligationResult(value strictjson.Value) (obligationResult
 		if err != nil {
 			return obligationResult{}, err
 		}
-		if err := p.parseCounterexample(fields["counterexample"]); err != nil {
+		counterexample, err := p.parseCounterexample(fields["counterexample"])
+		if err != nil {
 			return obligationResult{}, err
 		}
 		execution, err := p.recordExecution(fields["execution"])
-		return obligationResult{kind: tag, assumptions: assumptions, execution: execution}, err
+		return obligationResult{
+			kind: tag, assumptions: assumptions, execution: execution, counterexample: &counterexample,
+		}, err
 	case "trusted":
 		fields, err := object(value, "kind", "trust")
 		if err != nil {

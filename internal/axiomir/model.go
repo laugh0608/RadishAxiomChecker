@@ -29,6 +29,12 @@ type Document struct {
 	staticObligations []ObligationDefinition
 	inputInterfaces   []string
 	outputInterfaces  []string
+	enums             map[protocol.Digest]enumDefinition
+	records           map[protocol.Digest]recordDefinition
+	tables            map[protocol.Digest]tableDefinition
+	inputTables       map[string]protocol.Digest
+	outputTables      map[string]protocol.Digest
+	assumeContracts   []protocol.Digest
 }
 
 // VerifyDomainDigest binds canonical document bytes to an externally supplied
@@ -84,4 +90,11 @@ func (document Document) InputInterfaces() []string {
 // benchmark execution boundary contains an output comparison.
 func (document Document) OutputInterfaces() []string {
 	return append([]string(nil), document.outputInterfaces...)
+}
+
+// AssumeContractIDs returns the canonical IR assume-contract set. It exposes
+// identities only; concrete truth is checked by a later expression-replay
+// slice.
+func (document Document) AssumeContractIDs() []protocol.Digest {
+	return append([]protocol.Digest(nil), document.assumeContracts...)
 }

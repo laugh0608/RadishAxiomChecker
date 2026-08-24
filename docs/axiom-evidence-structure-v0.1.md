@@ -1,6 +1,6 @@
 # Axiom Evidence v0.1 严格结构与身份切片
 
-本文冻结独立 checker 首个 Axiom Evidence parser 的实际声明范围。规范真相源仍是 RadishAxiom 主仓库按摘要锁定的 `docs/evidence/axiom-evidence-v0.md`；本实现没有导入、复制或调用生产 Rust `raxc` 的 Evidence parser、聚合器、义务生成器、反例重放器或测试 helper。后续已经增加的义务集合比较入口见 [Axiom Evidence v0.1 obligation completeness 切片](axiom-evidence-obligation-completeness-v0.1.md)，状态关系入口见 [Axiom Evidence v0.1 state / support 切片](axiom-evidence-state-support-v0.1.md)；两者都不会改变本文的结构成功边界。
+本文冻结独立 checker 首个 Axiom Evidence parser 的实际声明范围。规范真相源仍是 RadishAxiom 主仓库按摘要锁定的 `docs/evidence/axiom-evidence-v0.md`；本实现没有导入、复制或调用生产 Rust `raxc` 的 Evidence parser、聚合器、义务生成器、反例重放器或测试 helper。后续已经增加的义务集合比较入口见 [Axiom Evidence v0.1 obligation completeness 切片](axiom-evidence-obligation-completeness-v0.1.md)，状态关系入口见 [Axiom Evidence v0.1 state / support 切片](axiom-evidence-state-support-v0.1.md)，有限 world 良构入口见 [Axiom Evidence v0.1 counterexample world / WF 切片](axiom-evidence-counterexample-worlds-v0.1.md)；这些入口都不会改变本文的结构成功边界。
 
 ## 输入与身份分层
 
@@ -33,7 +33,7 @@ Evidence raw content SHA-256、Evidence document domain SHA-256、IR raw content
 - obligation expectation：`check`、`prove`、`trust`；kind 为锁定语料实际使用的 14 个 v0.1 kind；
 - obligation subject：`artifact`、`contract`、`contract-path`、`document`、`field`、`interface`、`node`、`node-path`、`program`、`trust`；
 - obligation result：`checked`、`failed`、`proved`、`trusted`、`unknown`；proof support 为 `backend-attestation` 或 `kernel-replay`；
-- counterexample：`group`、`missing-key`、`paired-input`、`row-pair`、`single-row`；当前 witness value 为 `enum`、`int`、`text`；
+- counterexample：`group`、`missing-key`、`paired-input`、`row-pair`、`single-row`；witness value 闭合为 `bool`、`enum`、`int`、`text`，其中锁定 bundle 实际出现后三类，`bool` 由独立合成正负例覆盖；
 - trust category 为规范的八类，scope 为 `program` 或 `tool`；当前 mitigation 数组为空；
 - uncovered category 为规范的七类，scope 为 `program`；
 - conclusion 为 `implementation_inconsistent`、`inconclusive`、`input_rejected`、`satisfied` 或 `violated`。
@@ -76,7 +76,7 @@ map 只用于已知摘要查找，不参与规范输出、摘要或错误顺序�
 - `ParseStructure` 本身不判定完整性；调用方必须显式传入独立解析的 IR，再调用 `VerifyObligationCompleteness`。该比较入口仍不判断 obligation result 状态；
 - 判断 execution kind、tool role、execution result、support、assumption 或 trust category 的语义搭配；调用方必须在完整性通过后显式调用 `VerifyStateSupport`；
 - 检查未直接引用 artifact 的最终可达性；
-- 重放 concrete check、counterexample、world、`WF` / `Pre` 或 witness 最小性；
+- `ParseStructure` 本身不重放 concrete check、counterexample、world、`WF` / `Pre` 或 witness 最小性；调用方可在前置边界通过后显式调用 `VerifyCounterexampleWorlds` 检查当前有限 world / WF 子集；
 - 检查 certificate、backend attestation 真值或 kernel rule；
 - 重算 conclusion、应用 assurance policy、形成 remaining trust / missing artifact 或独立四态 result；
 - 执行 solver、Node、生产工具或网络 resolver，也不生成 binary、`checker.artifact` 或 CLI。
@@ -89,6 +89,7 @@ map 只用于已知摘要查找，不参与规范输出、摘要或错误顺序�
 
 - 25 个身份有效场景进入 Evidence parser；它们覆盖 25 份唯一 Evidence 和 12 份唯一 IR，其中 24 个通过后续 obligation completeness，`chk-obligation-01` 在该后续边界拒绝；
 - 24 个 obligation-complete 场景继续通过后续 state / support 闭合；bundle generator 已为 `replay-counterexample` fixture tool 补齐规范 `counterexample-replayer` role，并增加 kind / role 生成门禁；
+- 同一 24 个场景继续通过 counterexample world / WF 边界；核心及 host/output 失败见证必须由 IR 声明确认 WF，四个 input-conformance 负例允许保持已锚定的范围、`Pre` 或键失败；
 - `chk-bundle-01`、`chk-digest-01`、`chk-resource-01` 分别在缺失 artifact、raw content SHA-256、资源限制层拒绝，Evidence parser 不得越过这些失败；
 - 25 份 Evidence 的 raw content digest 与 manifest 一致，document domain digest 与版本化 bundle-set / expected result 一致，subject 双摘要与独立 Axiom IR parser 一致；
 - parser 负例覆盖未知 member / version / support tag、非规范 artifact / ref 顺序、definition domain ID 漂移、悬空 producer、重复 conclusion ref、错误 subject artifact，以及 Evidence document / IR subject 外部绑定不匹配；

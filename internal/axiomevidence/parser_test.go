@@ -32,6 +32,7 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 	parsed := 0
 	complete := 0
 	stateComplete := 0
+	worldComplete := 0
 	uniqueEvidence := make(map[protocol.Digest]struct{})
 	uniqueIR := make(map[protocol.Digest]struct{})
 	for _, entry := range entries {
@@ -86,6 +87,10 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 					t.Fatal(err)
 				}
 				stateComplete++
+				if err := document.VerifyCounterexampleWorlds(irDocument); err != nil {
+					t.Fatal(err)
+				}
+				worldComplete++
 			}
 			if document.Counts.Artifacts == 0 || document.Counts.Executions == 0 ||
 				document.Counts.Obligations == 0 || document.Counts.Tools == 0 {
@@ -104,6 +109,9 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 	}
 	if stateComplete != 24 {
 		t.Fatalf("expected 24 state/support-complete Evidence scenarios, got %d", stateComplete)
+	}
+	if worldComplete != 24 {
+		t.Fatalf("expected 24 counterexample-world-complete Evidence scenarios, got %d", worldComplete)
 	}
 	if len(uniqueEvidence) != 25 {
 		t.Fatalf("expected 25 unique identity-valid Evidence documents, got %d", len(uniqueEvidence))

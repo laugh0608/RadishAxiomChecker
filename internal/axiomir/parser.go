@@ -9,7 +9,8 @@ import (
 const semanticsSHA256 = "6b18d65eefa439956db8eebe1f4ce90e08b4def4abf7c718c2605e7528598d0d"
 
 type enumDefinition struct {
-	members map[string]struct{}
+	members     map[string]struct{}
+	memberOrder map[string]int
 }
 
 type valueKind uint8
@@ -220,6 +221,10 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 	if err != nil {
 		return Document{}, err
 	}
+	inputTables, outputTables, assumeContracts, err := p.retainConcreteInterfaces()
+	if err != nil {
+		return Document{}, err
+	}
 
 	return Document{
 		ContentDigest: contentDigest(data),
@@ -235,6 +240,12 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 		staticObligations: staticObligations,
 		inputInterfaces:   inputInterfaces,
 		outputInterfaces:  outputInterfaces,
+		enums:             cloneEnumDefinitions(p.enums),
+		records:           cloneRecordDefinitions(p.records),
+		tables:            cloneTableDefinitions(p.tables),
+		inputTables:       inputTables,
+		outputTables:      outputTables,
+		assumeContracts:   assumeContracts,
 	}, nil
 }
 

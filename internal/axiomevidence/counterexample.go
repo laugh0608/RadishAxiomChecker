@@ -1,9 +1,17 @@
 package axiomevidence
 
 import (
+	"radishaxiom.dev/independent-checker-go/internal/axiomir"
+	"radishaxiom.dev/independent-checker-go/internal/protocol"
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
 	"radishaxiom.dev/independent-checker-go/internal/strictjson"
 )
+
+type counterexampleDefinition struct {
+	kind          string
+	preconditions []protocol.Digest
+	worlds        []axiomir.ConcreteWorld
+}
 
 var counterexampleKinds = map[string]struct{}{
 	"group":        {},
@@ -13,27 +21,33 @@ var counterexampleKinds = map[string]struct{}{
 	"single-row":   {},
 }
 
-func (p *parser) parseCounterexample(value strictjson.Value) error {
+func (p *parser) parseCounterexample(value strictjson.Value) (counterexampleDefinition, error) {
 	fields, err := object(value, "kind", "minimality", "observed", "preconditions", "trace", "worlds")
 	if err != nil {
-		return err
+		return counterexampleDefinition{}, err
 	}
-	if _, err := requireOneOf(fields["kind"], counterexampleKinds, "unsupported Axiom Evidence counterexample kind"); err != nil {
-		return err
+	kind, err := requireOneOf(fields["kind"], counterexampleKinds, "unsupported Axiom Evidence counterexample kind")
+	if err != nil {
+		return counterexampleDefinition{}, err
 	}
 	if err := parseMinimality(fields["minimality"]); err != nil {
-		return err
+		return counterexampleDefinition{}, err
 	}
-	if _, err := parseDigestSet(fields["preconditions"], false, "Axiom Evidence counterexample preconditions are unsorted or duplicate"); err != nil {
-		return err
+	preconditions, err := parseDigestSet(fields["preconditions"], false, "Axiom Evidence counterexample preconditions are unsorted or duplicate")
+	if err != nil {
+		return counterexampleDefinition{}, err
 	}
 	if err := p.parseTrace(fields["trace"]); err != nil {
-		return err
+		return counterexampleDefinition{}, err
 	}
-	if err := p.parseWorlds(fields["worlds"]); err != nil {
-		return err
+	worlds, err := p.parseWorlds(fields["worlds"])
+	if err != nil {
+		return counterexampleDefinition{}, err
 	}
-	return p.parseObserved(fields["observed"])
+	if err := p.parseObserved(fields["observed"]); err != nil {
+		return counterexampleDefinition{}, err
+	}
+	return counterexampleDefinition{kind: kind, preconditions: preconditions, worlds: worlds}, nil
 }
 
 func parseMinimality(value strictjson.Value) error {
@@ -100,127 +114,150 @@ func (p *parser) parseTrace(value strictjson.Value) error {
 	return nil
 }
 
-func (p *parser) parseWorlds(value strictjson.Value) error {
+func (p *parser) parseWorlds(value strictjson.Value) ([]axiomir.ConcreteWorld, error) {
 	worlds, err := array(value)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	result := make([]axiomir.ConcreteWorld, 0, len(worlds))
 	for _, world := range worlds {
 		fields, err := object(world, "tables")
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if err := p.parseTables(fields["tables"]); err != nil {
-			return err
+		tables, err := p.parseTables(fields["tables"])
+		if err != nil {
+			return nil, err
 		}
+		result = append(result, axiomir.ConcreteWorld{Tables: tables})
 	}
-	return nil
+	return result, nil
 }
 
-func (p *parser) parseTables(value strictjson.Value) error {
+func (p *parser) parseTables(value strictjson.Value) ([]axiomir.ConcreteTable, error) {
 	tables, err := array(value)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	result := make([]axiomir.ConcreteTable, 0, len(tables))
 	var previous string
 	for index, table := range tables {
 		fields, err := object(table, "name", "rows")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		name, err := nonemptyText(fields["name"])
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := requireStrictOrder(previous, name, index != 0, "counterexample tables are not sorted and unique by input name"); err != nil {
-			return err
+			return nil, err
 		}
 		previous = name
 		rows, err := array(fields["rows"])
 		if err != nil {
-			return err
+			return nil, err
 		}
+		parsedRows := make([]axiomir.ConcreteRecord, 0, len(rows))
 		for _, row := range rows {
-			if err := p.parseRecord(row); err != nil {
-				return err
+			parsed, err := p.parseRecord(row)
+			if err != nil {
+				return nil, err
 			}
+			parsedRows = append(parsedRows, parsed)
 		}
+		result = append(result, axiomir.ConcreteTable{Name: name, Rows: parsedRows})
 	}
-	return nil
+	return result, nil
 }
 
-func (p *parser) parseRecord(value strictjson.Value) error {
+func (p *parser) parseRecord(value strictjson.Value) (axiomir.ConcreteRecord, error) {
 	fields, err := object(value, "fields", "kind", "record_type")
 	if err != nil {
-		return err
+		return axiomir.ConcreteRecord{}, err
 	}
 	if err := requireText(fields["kind"], "record", rejection.UnknownTag, "unsupported counterexample row kind"); err != nil {
-		return err
+		return axiomir.ConcreteRecord{}, err
 	}
-	if _, err := digest(fields["record_type"]); err != nil {
-		return err
+	recordType, err := digest(fields["record_type"])
+	if err != nil {
+		return axiomir.ConcreteRecord{}, err
 	}
 	fieldItems, err := array(fields["fields"])
 	if err != nil {
-		return err
+		return axiomir.ConcreteRecord{}, err
 	}
+	parsedFields := make([]axiomir.ConcreteField, 0, len(fieldItems))
 	var previous string
 	for index, field := range fieldItems {
 		fieldFields, err := object(field, "name", "value")
 		if err != nil {
-			return err
+			return axiomir.ConcreteRecord{}, err
 		}
 		name, err := nonemptyText(fieldFields["name"])
 		if err != nil {
-			return err
+			return axiomir.ConcreteRecord{}, err
 		}
 		if err := requireStrictOrder(previous, name, index != 0, "counterexample record fields are not sorted and unique by name"); err != nil {
-			return err
+			return axiomir.ConcreteRecord{}, err
 		}
 		previous = name
-		if err := parseWitnessValue(fieldFields["value"]); err != nil {
-			return err
+		parsedValue, err := parseWitnessValue(fieldFields["value"])
+		if err != nil {
+			return axiomir.ConcreteRecord{}, err
 		}
+		parsedFields = append(parsedFields, axiomir.ConcreteField{Name: name, Value: parsedValue})
 	}
-	return nil
+	return axiomir.ConcreteRecord{RecordType: recordType, Fields: parsedFields}, nil
 }
 
-func parseWitnessValue(value strictjson.Value) error {
+func parseWitnessValue(value strictjson.Value) (axiomir.ConcreteValue, error) {
 	tagValue, err := member(value, "kind")
 	if err != nil {
-		return err
+		return axiomir.ConcreteValue{}, err
 	}
 	tag, err := text(tagValue)
 	if err != nil {
-		return err
+		return axiomir.ConcreteValue{}, err
 	}
 	switch tag {
+	case "bool":
+		fields, err := object(value, "kind", "value")
+		if err != nil {
+			return axiomir.ConcreteValue{}, err
+		}
+		truth, ok := fields["value"].Bool()
+		if !ok {
+			return axiomir.ConcreteValue{}, rejection.New(rejection.InvalidJSON, "counterexample Bool value must be a JSON boolean")
+		}
+		return axiomir.ConcreteValue{Kind: tag, Bool: truth}, nil
 	case "int":
 		fields, err := object(value, "kind", "value")
 		if err != nil {
-			return err
+			return axiomir.ConcreteValue{}, err
 		}
-		_, err = canonicalSigned(fields["value"])
-		return err
+		integer, err := canonicalSigned(fields["value"])
+		return axiomir.ConcreteValue{Kind: tag, Integer: integer}, err
 	case "text":
 		fields, err := object(value, "kind", "value")
 		if err != nil {
-			return err
+			return axiomir.ConcreteValue{}, err
 		}
-		_, err = text(fields["value"])
-		return err
+		value, err := text(fields["value"])
+		return axiomir.ConcreteValue{Kind: tag, Text: value}, err
 	case "enum":
 		fields, err := object(value, "enum_type", "kind", "member")
 		if err != nil {
-			return err
+			return axiomir.ConcreteValue{}, err
 		}
-		if _, err := digest(fields["enum_type"]); err != nil {
-			return err
+		enumType, err := digest(fields["enum_type"])
+		if err != nil {
+			return axiomir.ConcreteValue{}, err
 		}
-		_, err = nonemptyText(fields["member"])
-		return err
+		member, err := nonemptyText(fields["member"])
+		return axiomir.ConcreteValue{Kind: tag, EnumType: enumType, EnumMember: member}, err
 	default:
-		return rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence witness value kind")
+		return axiomir.ConcreteValue{}, rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence witness value kind")
 	}
 }
 

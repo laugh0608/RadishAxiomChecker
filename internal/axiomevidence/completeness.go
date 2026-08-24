@@ -262,7 +262,33 @@ func cloneResults(source map[protocol.Digest]obligationResult) map[protocol.Dige
 		value.artifacts = append([]protocol.Digest(nil), value.artifacts...)
 		value.assumptions = append([]protocol.Digest(nil), value.assumptions...)
 		value.attempts = append([]protocol.Digest(nil), value.attempts...)
+		value.counterexample = cloneCounterexample(value.counterexample)
 		result[id] = value
+	}
+	return result
+}
+
+func cloneCounterexample(source *counterexampleDefinition) *counterexampleDefinition {
+	if source == nil {
+		return nil
+	}
+	result := &counterexampleDefinition{
+		kind:          source.kind,
+		preconditions: append([]protocol.Digest(nil), source.preconditions...),
+		worlds:        make([]axiomir.ConcreteWorld, len(source.worlds)),
+	}
+	for worldIndex, world := range source.worlds {
+		result.worlds[worldIndex].Tables = make([]axiomir.ConcreteTable, len(world.Tables))
+		for tableIndex, table := range world.Tables {
+			result.worlds[worldIndex].Tables[tableIndex].Name = table.Name
+			result.worlds[worldIndex].Tables[tableIndex].Rows = make([]axiomir.ConcreteRecord, len(table.Rows))
+			for rowIndex, row := range table.Rows {
+				result.worlds[worldIndex].Tables[tableIndex].Rows[rowIndex] = axiomir.ConcreteRecord{
+					RecordType: row.RecordType,
+					Fields:     append([]axiomir.ConcreteField(nil), row.Fields...),
+				}
+			}
+		}
 	}
 	return result
 }
