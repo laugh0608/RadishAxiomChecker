@@ -10,8 +10,9 @@
 - 独立导入且由摘要锁定的 RadishAxiom 合同 fixture。
 - [`checker.source` v0.1](docs/checker-source-v0.1.md) 的闭合仓库输入集合、canonical manifest、原始字节 SHA-256 复算和失败关闭门禁。
 - [Axiom IR v0.1 严格结构与类型良构切片](docs/axiom-ir-structure-v0.1.md)：对已锁定 keyed-finite-table profile 核对 canonical 字节、闭合 tag、全部 definition domain ID、声明 / 主键、18 个 expression op、projection / group 字段覆盖、节点 table type 关系、节点引用 / DAG / 可达性及完整文档 domain digest。
+- [Axiom Evidence v0.1 严格结构与身份切片](docs/axiom-evidence-structure-v0.1.md)：对 28 个锁定 bundle 的实际 profile 核对 canonical 字节、闭合 tag、tool / execution / obligation / trust / uncovered definition domain ID、直接引用索引、完整 Evidence document domain digest，以及 subject 的 IR raw content / document domain 双摘要绑定。
 
-Git commit / tree 不充当 `checker.source`，仓库也不生成 checker binary 或 `checker.artifact`。Axiom IR 结构与类型良构通过不等于语义接受：当前实现仍不重建或验证算术 / 聚合范围、连接恰好一次、行覆盖、字段标签 / 控制依赖、非干扰等首域义务，不解析 Axiom Evidence 语义，不检查 certificate，也不生成四态独立结果或产品 CLI。测试通过仅表示这些实现路径被检查，不构成形式证明或跨平台结论。
+Git commit / tree 不充当 `checker.source`，仓库也不生成 checker binary 或 `checker.artifact`。Axiom IR 与 Evidence 结构通过不等于语义接受：当前实现仍不重建或比较完整义务，不判断五种 Evidence 状态与 support 是否使用正确，不重放反例 / concrete check，不重算 conclusion，不检查 certificate，也不生成四态独立结果或产品 CLI。测试通过仅表示这些实现路径被检查，不构成形式证明或跨平台结论。
 
 当前资源实现只收口该 parser 切片实际消费的边界：request/manifest 单文档字节、JSON 容器深度、JSON 成员/元素、严格 JSON token、单 artifact 字节、manifest 唯一 artifact 总字节和流式 SHA-256。`wall-clock` 与逻辑 `working-memory` 字段会被闭合解析，但完整的跨阶段累计计数、内部 `incomplete` 结果形成和外层进程限制仍属于后续切片；这里不会把未实现的计数伪装成已执行。
 
