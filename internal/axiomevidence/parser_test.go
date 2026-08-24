@@ -31,6 +31,7 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 	}
 	parsed := 0
 	complete := 0
+	stateComplete := 0
 	uniqueEvidence := make(map[protocol.Digest]struct{})
 	uniqueIR := make(map[protocol.Digest]struct{})
 	for _, entry := range entries {
@@ -81,6 +82,10 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 				t.Fatal(completenessErr)
 			} else {
 				complete++
+				if err := document.VerifyStateSupport(); err != nil {
+					t.Fatal(err)
+				}
+				stateComplete++
 			}
 			if document.Counts.Artifacts == 0 || document.Counts.Executions == 0 ||
 				document.Counts.Obligations == 0 || document.Counts.Tools == 0 {
@@ -96,6 +101,9 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 	}
 	if complete != 24 {
 		t.Fatalf("expected 24 obligation-complete Evidence scenarios, got %d", complete)
+	}
+	if stateComplete != 24 {
+		t.Fatalf("expected 24 state/support-complete Evidence scenarios, got %d", stateComplete)
 	}
 	if len(uniqueEvidence) != 25 {
 		t.Fatalf("expected 25 unique identity-valid Evidence documents, got %d", len(uniqueEvidence))
@@ -256,7 +264,7 @@ func expectedEvidenceDomainDigest(t *testing.T, scenario, scenarioRoot string) p
 	if scenario == "chk-process-01" {
 		// The process-failure scenario intentionally has no independent result.
 		// Its Evidence identity is locked by the upstream bundle-set manifest.
-		digest, err := protocol.ParseDigest("sha256:a4d6c0c8c92a555de3d8d0ef9dba9711dc991e6d10dc93c187603348edb33734")
+		digest, err := protocol.ParseDigest("sha256:2412e0933ea7fe5359b7bf7819204877250c1b947c8498955eaf242be24c000c")
 		if err != nil {
 			t.Fatal(err)
 		}

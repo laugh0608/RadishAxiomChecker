@@ -1,0 +1,5 @@
+(set-logic QF_UFLIA)
+(declare-const axiom_s_22996cd3e3655beb_47b5aa177707740f Int)
+(assert (= axiom_s_22996cd3e3655beb_47b5aa177707740f 0))
+(assert (not (= axiom_s_22996cd3e3655beb_47b5aa177707740f 0)))
+(check-sat)

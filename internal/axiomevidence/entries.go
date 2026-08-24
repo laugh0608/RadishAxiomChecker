@@ -46,13 +46,15 @@ func (p *parser) parseArtifacts(value strictjson.Value) (int, error) {
 }
 
 var toolRoles = map[string]struct{}{
-	"evidence-producer":    {},
-	"fixture-checker":      {},
-	"host-executor":        {},
-	"ir-normalizer":        {},
-	"obligation-generator": {},
-	"output-comparator":    {},
-	"prover":               {},
+	"certificate-checker":     {},
+	"counterexample-replayer": {},
+	"evidence-producer":       {},
+	"fixture-checker":         {},
+	"host-executor":           {},
+	"ir-normalizer":           {},
+	"obligation-generator":    {},
+	"output-comparator":       {},
+	"prover":                  {},
 }
 
 func (p *parser) parseTools(value strictjson.Value) (int, error) {
@@ -90,9 +92,12 @@ func (p *parser) parseTools(value strictjson.Value) (int, error) {
 }
 
 var executionKinds = map[string]struct{}{
+	"check-certificate":     {},
 	"check-fixture":         {},
 	"compare-output":        {},
 	"execute-host":          {},
+	"generate-obligations":  {},
+	"normalize":             {},
 	"prove":                 {},
 	"replay-counterexample": {},
 }
@@ -103,7 +108,8 @@ func (p *parser) parseExecutions(value strictjson.Value) (int, error) {
 		if err != nil {
 			return err
 		}
-		if _, err := requireOneOf(fields["kind"], executionKinds, "unsupported Axiom Evidence execution kind"); err != nil {
+		kind, err := requireOneOf(fields["kind"], executionKinds, "unsupported Axiom Evidence execution kind")
+		if err != nil {
 			return err
 		}
 		inputs, err := p.parseExecutionIO(fields["inputs"])
@@ -117,7 +123,8 @@ func (p *parser) parseExecutions(value strictjson.Value) (int, error) {
 		if err := parseExecutionLimits(fields["limits"]); err != nil {
 			return err
 		}
-		if err := parseExecutionResult(fields["result"]); err != nil {
+		result, err := parseExecutionResult(fields["result"])
+		if err != nil {
 			return err
 		}
 		tool, err := digest(fields["tool"])
@@ -125,7 +132,9 @@ func (p *parser) parseExecutions(value strictjson.Value) (int, error) {
 			return err
 		}
 		p.toolRefs[tool] = struct{}{}
-		p.executions[id] = executionDefinition{inputs: inputs, outputs: outputs}
+		p.executions[id] = executionDefinition{
+			kind: kind, result: result, tool: tool, inputs: inputs, outputs: outputs,
+		}
 		return nil
 	})
 }
@@ -198,28 +207,28 @@ func parseExecutionLimits(value strictjson.Value) error {
 	return nil
 }
 
-func parseExecutionResult(value strictjson.Value) error {
+func parseExecutionResult(value strictjson.Value) (executionResult, error) {
 	tagValue, err := member(value, "kind")
 	if err != nil {
-		return err
+		return executionResult{}, err
 	}
 	tag, err := text(tagValue)
 	if err != nil {
-		return err
+		return executionResult{}, err
 	}
 	switch tag {
 	case "completed":
 		_, err = object(value, "kind")
-		return err
-	case "timeout", "unavailable":
+		return executionResult{kind: tag}, err
+	case "error", "resource-exhausted", "timeout", "unavailable", "unsupported":
 		fields, objectErr := object(value, "code", "kind")
 		if objectErr != nil {
-			return objectErr
+			return executionResult{}, objectErr
 		}
-		_, err = nonemptyText(fields["code"])
-		return err
+		code, err := nonemptyText(fields["code"])
+		return executionResult{kind: tag, code: code}, err
 	default:
-		return rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence execution result kind")
+		return executionResult{}, rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence execution result kind")
 	}
 }
 

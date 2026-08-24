@@ -235,6 +235,38 @@ func cloneExecutions(source map[protocol.Digest]executionDefinition) map[protoco
 	return result
 }
 
+func cloneArtifacts(source map[protocol.Digest]artifactDefinition) map[protocol.Digest]artifactDefinition {
+	result := make(map[protocol.Digest]artifactDefinition, len(source))
+	for id, definition := range source {
+		result[id] = definition
+	}
+	return result
+}
+
+func cloneTools(source map[protocol.Digest]toolDefinition) map[protocol.Digest]toolDefinition {
+	result := make(map[protocol.Digest]toolDefinition, len(source))
+	for id, definition := range source {
+		roles := make(map[string]struct{}, len(definition.roles))
+		for role := range definition.roles {
+			roles[role] = struct{}{}
+		}
+		definition.roles = roles
+		result[id] = definition
+	}
+	return result
+}
+
+func cloneResults(source map[protocol.Digest]obligationResult) map[protocol.Digest]obligationResult {
+	result := make(map[protocol.Digest]obligationResult, len(source))
+	for id, value := range source {
+		value.artifacts = append([]protocol.Digest(nil), value.artifacts...)
+		value.assumptions = append([]protocol.Digest(nil), value.assumptions...)
+		value.attempts = append([]protocol.Digest(nil), value.attempts...)
+		result[id] = value
+	}
+	return result
+}
+
 func cloneObligations(source map[protocol.Digest]axiomir.ObligationDefinition) map[protocol.Digest]axiomir.ObligationDefinition {
 	result := make(map[protocol.Digest]axiomir.ObligationDefinition, len(source))
 	for id, definition := range source {

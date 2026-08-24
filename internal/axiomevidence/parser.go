@@ -24,8 +24,36 @@ type executionIO struct {
 }
 
 type executionDefinition struct {
+	kind    string
+	result  executionResult
+	tool    protocol.Digest
 	inputs  []executionIO
 	outputs []executionIO
+}
+
+type executionResult struct {
+	kind string
+	code string
+}
+
+type proofSupport struct {
+	kind      string
+	execution protocol.Digest
+	artifact  protocol.Digest
+	query     protocol.Digest
+	response  protocol.Digest
+	trust     protocol.Digest
+}
+
+type obligationResult struct {
+	kind        string
+	artifacts   []protocol.Digest
+	assumptions []protocol.Digest
+	execution   protocol.Digest
+	attempts    []protocol.Digest
+	reason      string
+	support     proofSupport
+	trust       protocol.Digest
 }
 
 type trustDefinition struct {
@@ -37,6 +65,7 @@ type parser struct {
 	tools       map[protocol.Digest]toolDefinition
 	executions  map[protocol.Digest]executionDefinition
 	obligations map[protocol.Digest]axiomir.ObligationDefinition
+	results     map[protocol.Digest]obligationResult
 	trust       map[protocol.Digest]trustDefinition
 	uncovered   map[protocol.Digest]struct{}
 
@@ -88,6 +117,7 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 		tools:          make(map[protocol.Digest]toolDefinition),
 		executions:     make(map[protocol.Digest]executionDefinition),
 		obligations:    make(map[protocol.Digest]axiomir.ObligationDefinition),
+		results:        make(map[protocol.Digest]obligationResult),
 		trust:          make(map[protocol.Digest]trustDefinition),
 		uncovered:      make(map[protocol.Digest]struct{}),
 		artifactRefs:   make(map[protocol.Digest]struct{}),
@@ -154,8 +184,11 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 		irArtifact:        p.irArtifact,
 		irDocumentDigest:  p.irDocumentDigest,
 		obligationProfile: p.obligationProfile,
+		artifacts:         cloneArtifacts(p.artifacts),
+		tools:             cloneTools(p.tools),
 		executions:        cloneExecutions(p.executions),
 		obligations:       cloneObligations(p.obligations),
+		results:           cloneResults(p.results),
 		trust:             cloneTrust(p.trust),
 	}, nil
 }

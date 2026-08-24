@@ -15,6 +15,7 @@ const (
 	DuplicateMember            Code = "duplicate-member"
 	EvidenceCardinality        Code = "evidence-cardinality"
 	InvalidJSON                Code = "invalid-json"
+	InvalidStateSupport        Code = "invalid-state-support"
 	InvalidUTF8                Code = "invalid-utf8"
 	IsolationBoundaryViolation Code = "isolation-boundary-violation"
 	JSONNumberOrNull           Code = "json-number-or-null"

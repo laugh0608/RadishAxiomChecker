@@ -24,7 +24,7 @@ map 只用于摘要集合查找。IR entry 顺序来自已经核对的 canonical
 - 每个命名 output record field 的 `field-origin`；
 - 每个 guarantee formula 的 `contract-guarantee`，以及每个 noninterference contract 的 `noninterference`。
 
-group 同时生成覆盖与守恒义务，依据首域语义的“行覆盖 / 分组守恒”区分、Axiom IR 的 AX-B03 映射及锁定 Evidence profile；两项不能合并。
+group 同时生成覆盖与守恒义务，依据首域语义的“行覆盖 / 分组守恒”区分、Axiom IR 的 AX-B03 映射及锁定 Evidence profile；两项不能合并。主仓 ADR 0009 已冻结 v0.1 规范原始字节不变、后续 v0.2 显式修正义务位置表并重新绑定摘要的迁移边界；本实现只声明支持当前锁定 profile。
 
 ## Profile 与显式 benchmark boundary
 
@@ -38,7 +38,7 @@ benchmark profile 另外生成：
 - 每个唯一 `golden-output` artifact 的 `output-conformance`；
 - 出现 golden-output boundary 时，每个 IR output interface 的 `output-conformance`。
 
-这些 role 只用于确定“必须存在何种 definition”的显式边界。本切片不判断 role 是否配给正确 execution kind、tool role、result、support 或 artifact format；因此不会提前冒充后续 state / support 与 concrete replay。
+这些 role 只用于确定“必须存在何种 definition”的显式边界。本切片本身不判断 role 是否配给正确 execution kind、tool role、result、support 或 artifact format；调用方必须另行执行 [state / support 切片](axiom-evidence-state-support-v0.1.md)，后者仍不会提前冒充 concrete replay。
 
 ## 锁定场景与负例
 

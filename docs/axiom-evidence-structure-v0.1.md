@@ -1,6 +1,6 @@
 # Axiom Evidence v0.1 严格结构与身份切片
 
-本文冻结独立 checker 首个 Axiom Evidence parser 的实际声明范围。规范真相源仍是 RadishAxiom 主仓库按摘要锁定的 `docs/evidence/axiom-evidence-v0.md`；本实现没有导入、复制或调用生产 Rust `raxc` 的 Evidence parser、聚合器、义务生成器、反例重放器或测试 helper。后续已经增加的义务集合比较入口见 [Axiom Evidence v0.1 obligation completeness 切片](axiom-evidence-obligation-completeness-v0.1.md)，但不会改变本文的结构成功边界。
+本文冻结独立 checker 首个 Axiom Evidence parser 的实际声明范围。规范真相源仍是 RadishAxiom 主仓库按摘要锁定的 `docs/evidence/axiom-evidence-v0.md`；本实现没有导入、复制或调用生产 Rust `raxc` 的 Evidence parser、聚合器、义务生成器、反例重放器或测试 helper。后续已经增加的义务集合比较入口见 [Axiom Evidence v0.1 obligation completeness 切片](axiom-evidence-obligation-completeness-v0.1.md)，状态关系入口见 [Axiom Evidence v0.1 state / support 切片](axiom-evidence-state-support-v0.1.md)；两者都不会改变本文的结构成功边界。
 
 ## 输入与身份分层
 
@@ -26,10 +26,10 @@ Evidence raw content SHA-256、Evidence document domain SHA-256、IR raw content
 - subject 为 `axiom-ir` `0.1`，语义名称与摘要等于已锁定的 keyed-finite-table 规范；
 - obligation profile 为 `keyed-finite-table-verification` 或 `keyed-finite-table-benchmark` `0.1`。
 
-本切片只接受 28 个版本化 bundle 实际使用到的闭合 tag 集合：
+当前 parser 接受规范已登记并由后续闭合校验所需的 tag 集合；结构接受不表示对应能力已经执行：
 
-- tool role：`evidence-producer`、`fixture-checker`、`host-executor`、`ir-normalizer`、`obligation-generator`、`output-comparator`、`prover`；
-- execution：`check-fixture`、`compare-output`、`execute-host`、`prove`、`replay-counterexample`；execution result 为 `completed`、`timeout` 或 `unavailable`；
+- tool role：规范 v0.1 的九项闭合集合，包括 `certificate-checker` 与 `counterexample-replayer`；
+- execution：规范 v0.1 的八项闭合集合；execution result 为 `completed`、`error`、`resource-exhausted`、`timeout`、`unavailable` 或 `unsupported`；
 - obligation expectation：`check`、`prove`、`trust`；kind 为锁定语料实际使用的 14 个 v0.1 kind；
 - obligation subject：`artifact`、`contract`、`contract-path`、`document`、`field`、`interface`、`node`、`node-path`、`program`、`trust`；
 - obligation result：`checked`、`failed`、`proved`、`trusted`、`unknown`；proof support 为 `backend-attestation` 或 `kernel-replay`；
@@ -38,7 +38,7 @@ Evidence raw content SHA-256、Evidence document domain SHA-256、IR raw content
 - uncovered category 为规范的七类，scope 为 `program`；
 - conclusion 为 `implementation_inconsistent`、`inconclusive`、`input_rejected`、`satisfied` 或 `violated`。
 
-声明范围外的 `rejected-ir` subject、certificate support、其余 execution result、counterexample、trace、value、scope 或 mitigation 组合失败关闭。它们只能通过单独的小切片、正负例和源码身份重放扩大，不能静默忽略或按相近 tag 解释。
+声明范围外的 `rejected-ir` subject、certificate support、其余 counterexample、trace、value、scope 或 mitigation 组合失败关闭。结构 parser 可以保留规范 execution / result tag，不代表 certificate、normalize 或 obligation generation 已由 checker 执行；能力只能通过对应后续切片、正负例和源码身份重放扩大，不能静默忽略或按相近 tag 解释。
 
 ## 规范顺序与定义身份
 
@@ -71,11 +71,10 @@ map 只用于已知摘要查找，不参与规范输出、摘要或错误顺序�
 
 `ParseStructure` 的成功结果只包含 Evidence raw content digest、document domain digest、subject 双摘要和顶层计数，不是 checker 四态结果。
 
-当前实现不：
+`ParseStructure` 本身不：
 
-- 判断 obligation `expectation` 与五种 result 状态是否配对正确；
 - `ParseStructure` 本身不判定完整性；调用方必须显式传入独立解析的 IR，再调用 `VerifyObligationCompleteness`。该比较入口仍不判断 obligation result 状态；
-- 判断 execution kind、tool role、execution result、support、assumption 或 trust category 的语义搭配；
+- 判断 execution kind、tool role、execution result、support、assumption 或 trust category 的语义搭配；调用方必须在完整性通过后显式调用 `VerifyStateSupport`；
 - 检查未直接引用 artifact 的最终可达性；
 - 重放 concrete check、counterexample、world、`WF` / `Pre` 或 witness 最小性；
 - 检查 certificate、backend attestation 真值或 kernel rule；
@@ -89,6 +88,7 @@ map 只用于已知摘要查找，不参与规范输出、摘要或错误顺序�
 28 个 bundle 的入口边界保持如下：
 
 - 25 个身份有效场景进入 Evidence parser；它们覆盖 25 份唯一 Evidence 和 12 份唯一 IR，其中 24 个通过后续 obligation completeness，`chk-obligation-01` 在该后续边界拒绝；
+- 24 个 obligation-complete 场景继续通过后续 state / support 闭合；bundle generator 已为 `replay-counterexample` fixture tool 补齐规范 `counterexample-replayer` role，并增加 kind / role 生成门禁；
 - `chk-bundle-01`、`chk-digest-01`、`chk-resource-01` 分别在缺失 artifact、raw content SHA-256、资源限制层拒绝，Evidence parser 不得越过这些失败；
 - 25 份 Evidence 的 raw content digest 与 manifest 一致，document domain digest 与版本化 bundle-set / expected result 一致，subject 双摘要与独立 Axiom IR parser 一致；
 - parser 负例覆盖未知 member / version / support tag、非规范 artifact / ref 顺序、definition domain ID 漂移、悬空 producer、重复 conclusion ref、错误 subject artifact，以及 Evidence document / IR subject 外部绑定不匹配；

@@ -18,8 +18,8 @@ type Counts struct {
 }
 
 // Document is the identity-bearing result of Axiom Evidence structural parsing.
-// It retains only the metadata needed for the separate completeness comparison;
-// it is not an independent-check result and makes no obligation-state claim.
+// It retains the metadata needed for the separate completeness and state/support
+// comparisons; it is not an independent-check result and makes no semantic claim.
 type Document struct {
 	ContentDigest protocol.Digest
 	DomainDigest  protocol.Digest
@@ -28,8 +28,11 @@ type Document struct {
 	irArtifact        protocol.Digest
 	irDocumentDigest  protocol.Digest
 	obligationProfile string
+	artifacts         map[protocol.Digest]artifactDefinition
+	tools             map[protocol.Digest]toolDefinition
 	executions        map[protocol.Digest]executionDefinition
 	obligations       map[protocol.Digest]axiomir.ObligationDefinition
+	results           map[protocol.Digest]obligationResult
 	trust             map[protocol.Digest]trustDefinition
 }
 

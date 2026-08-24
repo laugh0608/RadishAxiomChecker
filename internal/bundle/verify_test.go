@@ -70,7 +70,7 @@ func TestImportedBundleCorpusRemainsDigestLocked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := sha256.Sum256(raw); hex.EncodeToString(got[:]) != "290f149eb4cd04870a0b0edca9ac0ec10c5cfaa957371497d9680d8737aac146" {
+	if got := sha256.Sum256(raw); hex.EncodeToString(got[:]) != "a349152cb2f838cf5acfaa66ef1676554f6d5f453d07314b3cc1b8c5579c7974" {
 		t.Fatal("imported contract.json identity drifted")
 	}
 	var lock sourceLock

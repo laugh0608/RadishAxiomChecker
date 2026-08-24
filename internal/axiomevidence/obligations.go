@@ -60,9 +60,11 @@ func (p *parser) parseObligations(value strictjson.Value) (int, error) {
 			return 0, err
 		}
 		p.obligations[id] = definition
-		if err := p.parseObligationResult(fields["result"]); err != nil {
+		result, err := p.parseObligationResult(fields["result"])
+		if err != nil {
 			return 0, err
 		}
+		p.results[id] = result
 		previous = spelling
 	}
 	return len(items), nil
@@ -212,151 +214,166 @@ func parseDirection(value strictjson.Value) (string, error) {
 	return requireOneOf(value, allowed, "unsupported Axiom Evidence interface direction")
 }
 
-func (p *parser) parseObligationResult(value strictjson.Value) error {
+func (p *parser) parseObligationResult(value strictjson.Value) (obligationResult, error) {
 	tagValue, err := member(value, "kind")
 	if err != nil {
-		return err
+		return obligationResult{}, err
 	}
 	tag, err := text(tagValue)
 	if err != nil {
-		return err
+		return obligationResult{}, err
 	}
 	switch tag {
 	case "proved":
 		fields, err := object(value, "assumptions", "kind", "support")
 		if err != nil {
-			return err
+			return obligationResult{}, err
 		}
-		if err := p.recordTrustSet(fields["assumptions"], false); err != nil {
-			return err
+		assumptions, err := p.recordTrustSet(fields["assumptions"], false)
+		if err != nil {
+			return obligationResult{}, err
 		}
-		return p.parseSupport(fields["support"])
+		support, err := p.parseSupport(fields["support"])
+		return obligationResult{kind: tag, assumptions: assumptions, support: support}, err
 	case "checked":
 		fields, err := object(value, "artifacts", "assumptions", "execution", "kind")
 		if err != nil {
-			return err
+			return obligationResult{}, err
 		}
-		if err := p.recordArtifactSet(fields["artifacts"], false); err != nil {
-			return err
+		artifacts, err := p.recordArtifactSet(fields["artifacts"], false)
+		if err != nil {
+			return obligationResult{}, err
 		}
-		if err := p.recordTrustSet(fields["assumptions"], false); err != nil {
-			return err
+		assumptions, err := p.recordTrustSet(fields["assumptions"], false)
+		if err != nil {
+			return obligationResult{}, err
 		}
-		return p.recordExecution(fields["execution"])
+		execution, err := p.recordExecution(fields["execution"])
+		return obligationResult{kind: tag, artifacts: artifacts, assumptions: assumptions, execution: execution}, err
 	case "unknown":
 		fields, err := object(value, "attempts", "kind", "reason")
 		if err != nil {
-			return err
+			return obligationResult{}, err
 		}
 		attempts, err := parseDigestSet(fields["attempts"], true, "Axiom Evidence unknown attempts are empty, unsorted, or duplicate")
 		if err != nil {
-			return err
+			return obligationResult{}, err
 		}
 		for _, attempt := range attempts {
 			p.executionRefs[attempt] = struct{}{}
 		}
-		allowed := map[string]struct{}{"backend-unavailable": {}, "timeout": {}}
-		_, err = requireOneOf(fields["reason"], allowed, "unsupported Axiom Evidence unknown reason")
-		return err
+		allowed := map[string]struct{}{
+			"backend-unavailable": {}, "incomplete-certificate": {}, "indeterminate": {},
+			"operational-error": {}, "resource-exhausted": {}, "timeout": {}, "unsupported": {},
+		}
+		reason, err := requireOneOf(fields["reason"], allowed, "unsupported Axiom Evidence unknown reason")
+		return obligationResult{kind: tag, attempts: attempts, reason: reason}, err
 	case "failed":
 		fields, err := object(value, "assumptions", "counterexample", "execution", "kind")
 		if err != nil {
-			return err
+			return obligationResult{}, err
 		}
-		if err := p.recordTrustSet(fields["assumptions"], false); err != nil {
-			return err
+		assumptions, err := p.recordTrustSet(fields["assumptions"], false)
+		if err != nil {
+			return obligationResult{}, err
 		}
 		if err := p.parseCounterexample(fields["counterexample"]); err != nil {
-			return err
+			return obligationResult{}, err
 		}
-		return p.recordExecution(fields["execution"])
+		execution, err := p.recordExecution(fields["execution"])
+		return obligationResult{kind: tag, assumptions: assumptions, execution: execution}, err
 	case "trusted":
 		fields, err := object(value, "kind", "trust")
 		if err != nil {
-			return err
+			return obligationResult{}, err
 		}
 		trust, err := digest(fields["trust"])
 		if err != nil {
-			return err
+			return obligationResult{}, err
 		}
 		p.trustRefs[trust] = struct{}{}
-		return nil
+		return obligationResult{kind: tag, trust: trust}, nil
 	default:
-		return rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence obligation result kind")
+		return obligationResult{}, rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence obligation result kind")
 	}
 }
 
-func (p *parser) parseSupport(value strictjson.Value) error {
+func (p *parser) parseSupport(value strictjson.Value) (proofSupport, error) {
 	tagValue, err := member(value, "kind")
 	if err != nil {
-		return err
+		return proofSupport{}, err
 	}
 	tag, err := text(tagValue)
 	if err != nil {
-		return err
+		return proofSupport{}, err
 	}
 	switch tag {
 	case "kernel-replay":
 		fields, err := object(value, "execution", "kind")
 		if err != nil {
-			return err
+			return proofSupport{}, err
 		}
-		return p.recordExecution(fields["execution"])
+		execution, err := p.recordExecution(fields["execution"])
+		return proofSupport{kind: tag, execution: execution}, err
 	case "backend-attestation":
 		fields, err := object(value, "execution", "kind", "query", "response", "trust")
 		if err != nil {
-			return err
+			return proofSupport{}, err
 		}
-		if err := p.recordExecution(fields["execution"]); err != nil {
-			return err
+		execution, err := p.recordExecution(fields["execution"])
+		if err != nil {
+			return proofSupport{}, err
 		}
-		for _, name := range []string{"query", "response"} {
-			artifact, err := digest(fields[name])
-			if err != nil {
-				return err
-			}
-			p.artifactRefs[artifact] = struct{}{}
+		query, err := digest(fields["query"])
+		if err != nil {
+			return proofSupport{}, err
 		}
+		response, err := digest(fields["response"])
+		if err != nil {
+			return proofSupport{}, err
+		}
+		p.artifactRefs[query] = struct{}{}
+		p.artifactRefs[response] = struct{}{}
 		trust, err := digest(fields["trust"])
 		if err != nil {
-			return err
+			return proofSupport{}, err
 		}
 		p.trustRefs[trust] = struct{}{}
-		return nil
+		return proofSupport{kind: tag, execution: execution, query: query, response: response, trust: trust}, nil
 	default:
-		return rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence proof support kind")
+		return proofSupport{}, rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence proof support kind")
 	}
 }
 
-func (p *parser) recordArtifactSet(value strictjson.Value, nonempty bool) error {
+func (p *parser) recordArtifactSet(value strictjson.Value, nonempty bool) ([]protocol.Digest, error) {
 	refs, err := parseDigestSet(value, nonempty, "Axiom Evidence artifact refs are empty, unsorted, or duplicate")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, ref := range refs {
 		p.artifactRefs[ref] = struct{}{}
 	}
-	return nil
+	return refs, nil
 }
 
-func (p *parser) recordTrustSet(value strictjson.Value, nonempty bool) error {
+func (p *parser) recordTrustSet(value strictjson.Value, nonempty bool) ([]protocol.Digest, error) {
 	refs, err := parseDigestSet(value, nonempty, "Axiom Evidence trust refs are empty, unsorted, or duplicate")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, ref := range refs {
 		p.trustRefs[ref] = struct{}{}
 	}
-	return nil
+	return refs, nil
 }
 
-func (p *parser) recordExecution(value strictjson.Value) error {
+func (p *parser) recordExecution(value strictjson.Value) (protocol.Digest, error) {
 	ref, err := digest(value)
 	if err != nil {
-		return err
+		return protocol.Digest{}, err
 	}
 	p.executionRefs[ref] = struct{}{}
-	return nil
+	return ref, nil
 }
 
 func (p *parser) parseConclusion(value strictjson.Value) error {
