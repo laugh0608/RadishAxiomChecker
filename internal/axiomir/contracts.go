@@ -6,7 +6,7 @@ import (
 	"radishaxiom.dev/independent-checker-go/internal/strictjson"
 )
 
-func (p *parser) parseContractDefinition(value strictjson.Value, _ protocol.Digest) error {
+func (p *parser) parseContractDefinition(value strictjson.Value, id protocol.Digest) error {
 	kindValue, err := member(value, "kind")
 	if err != nil {
 		return err
@@ -44,6 +44,8 @@ func (p *parser) parseContractDefinition(value strictjson.Value, _ protocol.Dige
 		if formulaType.kind != boolValue {
 			return rejection.New(rejection.InvalidJSON, "formula contract expression must be Bool")
 		}
+		p.contracts[id] = contractDefinition{kind: kind, role: role, definition: value}
+		p.contractOrder = append(p.contractOrder, id)
 		return nil
 	case "noninterference":
 		fields, err := object(value, "inputs", "kind", "outputs")
@@ -71,6 +73,8 @@ func (p *parser) parseContractDefinition(value strictjson.Value, _ protocol.Dige
 				return rejection.New(rejection.InvalidJSON, "noninterference output reference does not resolve")
 			}
 		}
+		p.contracts[id] = contractDefinition{kind: kind, definition: value}
+		p.contractOrder = append(p.contractOrder, id)
 		return nil
 	default:
 		return rejection.New(rejection.UnknownTag, "contract kind is outside the locked Axiom IR structure profile")

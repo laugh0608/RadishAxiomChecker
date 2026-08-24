@@ -1,6 +1,7 @@
 package axiomevidence
 
 import (
+	"radishaxiom.dev/independent-checker-go/internal/axiomir"
 	"radishaxiom.dev/independent-checker-go/internal/protocol"
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
 	"radishaxiom.dev/independent-checker-go/internal/strictjson"
@@ -51,13 +52,14 @@ func (p *parser) parseObligations(value strictjson.Value) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		if err := p.parseObligationDefinition(fields["definition"]); err != nil {
+		definition, err := p.parseObligationDefinition(fields["definition"])
+		if err != nil {
 			return 0, err
 		}
 		if err := verifyDefinitionID(domainObligation, fields["definition"], id); err != nil {
 			return 0, err
 		}
-		p.obligations[id] = struct{}{}
+		p.obligations[id] = definition
 		if err := p.parseObligationResult(fields["result"]); err != nil {
 			return 0, err
 		}
@@ -66,126 +68,148 @@ func (p *parser) parseObligations(value strictjson.Value) (int, error) {
 	return len(items), nil
 }
 
-func (p *parser) parseObligationDefinition(value strictjson.Value) error {
+func (p *parser) parseObligationDefinition(value strictjson.Value) (axiomir.ObligationDefinition, error) {
 	fields, err := object(value, "expectation", "kind", "subject")
 	if err != nil {
-		return err
+		return axiomir.ObligationDefinition{}, err
 	}
-	if _, err := requireOneOf(fields["expectation"], obligationExpectations, "unsupported Axiom Evidence obligation expectation"); err != nil {
-		return err
+	expectation, err := requireOneOf(fields["expectation"], obligationExpectations, "unsupported Axiom Evidence obligation expectation")
+	if err != nil {
+		return axiomir.ObligationDefinition{}, err
 	}
-	if _, err := requireOneOf(fields["kind"], obligationKinds, "unsupported Axiom Evidence obligation kind"); err != nil {
-		return err
+	kind, err := requireOneOf(fields["kind"], obligationKinds, "unsupported Axiom Evidence obligation kind")
+	if err != nil {
+		return axiomir.ObligationDefinition{}, err
 	}
-	return p.parseObligationSubject(fields["subject"])
+	subject, err := p.parseObligationSubject(fields["subject"])
+	if err != nil {
+		return axiomir.ObligationDefinition{}, err
+	}
+	return axiomir.ObligationDefinition{Expectation: expectation, Kind: kind, Subject: subject}, nil
 }
 
-func (p *parser) parseObligationSubject(value strictjson.Value) error {
+func (p *parser) parseObligationSubject(value strictjson.Value) (axiomir.ObligationSubject, error) {
 	tagValue, err := member(value, "kind")
 	if err != nil {
-		return err
+		return axiomir.ObligationSubject{}, err
 	}
 	tag, err := text(tagValue)
 	if err != nil {
-		return err
+		return axiomir.ObligationSubject{}, err
 	}
 	switch tag {
 	case "artifact":
 		fields, err := object(value, "artifact", "kind")
 		if err != nil {
-			return err
+			return axiomir.ObligationSubject{}, err
 		}
 		artifact, err := digest(fields["artifact"])
 		if err != nil {
-			return err
+			return axiomir.ObligationSubject{}, err
 		}
 		p.artifactRefs[artifact] = struct{}{}
-		return nil
+		return axiomir.ObligationSubject{Kind: tag, Artifact: artifact}, nil
 	case "contract", "node":
 		fields, err := object(value, "id", "kind")
 		if err != nil {
-			return err
+			return axiomir.ObligationSubject{}, err
 		}
-		_, err = digest(fields["id"])
-		return err
+		id, err := digest(fields["id"])
+		if err != nil {
+			return axiomir.ObligationSubject{}, err
+		}
+		return axiomir.ObligationSubject{Kind: tag, ID: id}, nil
 	case "contract-path", "node-path":
 		fields, err := object(value, "id", "kind", "path")
 		if err != nil {
-			return err
+			return axiomir.ObligationSubject{}, err
 		}
-		if _, err := digest(fields["id"]); err != nil {
-			return err
+		id, err := digest(fields["id"])
+		if err != nil {
+			return axiomir.ObligationSubject{}, err
 		}
 		path, err := array(fields["path"])
 		if err != nil {
-			return err
+			return axiomir.ObligationSubject{}, err
 		}
 		if len(path) == 0 {
-			return rejection.New(rejection.InvalidJSON, "Axiom Evidence obligation path must not be empty")
+			return axiomir.ObligationSubject{}, rejection.New(rejection.InvalidJSON, "Axiom Evidence obligation path must not be empty")
 		}
+		parsedPath := make([]string, 0, len(path))
 		for _, element := range path {
-			if _, err := nonemptyText(element); err != nil {
-				return err
+			text, err := nonemptyText(element)
+			if err != nil {
+				return axiomir.ObligationSubject{}, err
 			}
+			parsedPath = append(parsedPath, text)
 		}
-		return nil
+		return axiomir.ObligationSubject{Kind: tag, ID: id, Path: parsedPath}, nil
 	case "document", "program":
 		fields, err := object(value, "ir_document_digest", "kind")
 		if err != nil {
-			return err
+			return axiomir.ObligationSubject{}, err
 		}
 		document, err := digest(fields["ir_document_digest"])
 		if err != nil {
-			return err
+			return axiomir.ObligationSubject{}, err
 		}
 		p.documentRefs[document] = struct{}{}
-		return nil
+		return axiomir.ObligationSubject{Kind: tag, IRDocumentDigest: document}, nil
 	case "field":
 		fields, err := object(value, "direction", "interface", "kind", "name")
 		if err != nil {
-			return err
+			return axiomir.ObligationSubject{}, err
 		}
-		if err := parseDirection(fields["direction"]); err != nil {
-			return err
+		direction, err := parseDirection(fields["direction"])
+		if err != nil {
+			return axiomir.ObligationSubject{}, err
 		}
-		if _, err := nonemptyText(fields["interface"]); err != nil {
-			return err
+		interfaceName, err := nonemptyText(fields["interface"])
+		if err != nil {
+			return axiomir.ObligationSubject{}, err
 		}
-		_, err = nonemptyText(fields["name"])
-		return err
+		name, err := nonemptyText(fields["name"])
+		if err != nil {
+			return axiomir.ObligationSubject{}, err
+		}
+		return axiomir.ObligationSubject{Kind: tag, Direction: direction, Interface: interfaceName, Name: name}, nil
 	case "interface":
 		fields, err := object(value, "direction", "kind", "name")
 		if err != nil {
-			return err
+			return axiomir.ObligationSubject{}, err
 		}
-		if err := parseDirection(fields["direction"]); err != nil {
-			return err
+		direction, err := parseDirection(fields["direction"])
+		if err != nil {
+			return axiomir.ObligationSubject{}, err
 		}
-		_, err = nonemptyText(fields["name"])
-		return err
+		name, err := nonemptyText(fields["name"])
+		if err != nil {
+			return axiomir.ObligationSubject{}, err
+		}
+		return axiomir.ObligationSubject{Kind: tag, Direction: direction, Name: name}, nil
 	case "trust":
 		fields, err := object(value, "category", "kind", "scope")
 		if err != nil {
-			return err
+			return axiomir.ObligationSubject{}, err
 		}
-		if _, err := requireOneOf(fields["category"], trustCategories, "unsupported Axiom Evidence trust category"); err != nil {
-			return err
+		category, err := requireOneOf(fields["category"], trustCategories, "unsupported Axiom Evidence trust category")
+		if err != nil {
+			return axiomir.ObligationSubject{}, err
 		}
 		trust, err := digest(fields["scope"])
 		if err != nil {
-			return err
+			return axiomir.ObligationSubject{}, err
 		}
 		p.trustRefs[trust] = struct{}{}
-		return nil
+		return axiomir.ObligationSubject{Kind: tag, Category: category, Scope: trust}, nil
 	default:
-		return rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence obligation subject kind")
+		return axiomir.ObligationSubject{}, rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence obligation subject kind")
 	}
 }
 
-func parseDirection(value strictjson.Value) error {
+func parseDirection(value strictjson.Value) (string, error) {
 	allowed := map[string]struct{}{"input": {}, "output": {}}
-	_, err := requireOneOf(value, allowed, "unsupported Axiom Evidence interface direction")
-	return err
+	return requireOneOf(value, allowed, "unsupported Axiom Evidence interface direction")
 }
 
 func (p *parser) parseObligationResult(value strictjson.Value) error {

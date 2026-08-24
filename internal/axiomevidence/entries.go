@@ -106,10 +106,12 @@ func (p *parser) parseExecutions(value strictjson.Value) (int, error) {
 		if _, err := requireOneOf(fields["kind"], executionKinds, "unsupported Axiom Evidence execution kind"); err != nil {
 			return err
 		}
-		if err := p.parseExecutionIO(fields["inputs"]); err != nil {
+		inputs, err := p.parseExecutionIO(fields["inputs"])
+		if err != nil {
 			return err
 		}
-		if err := p.parseExecutionIO(fields["outputs"]); err != nil {
+		outputs, err := p.parseExecutionIO(fields["outputs"])
+		if err != nil {
 			return err
 		}
 		if err := parseExecutionLimits(fields["limits"]); err != nil {
@@ -123,43 +125,45 @@ func (p *parser) parseExecutions(value strictjson.Value) (int, error) {
 			return err
 		}
 		p.toolRefs[tool] = struct{}{}
-		p.executions[id] = struct{}{}
+		p.executions[id] = executionDefinition{inputs: inputs, outputs: outputs}
 		return nil
 	})
 }
 
-func (p *parser) parseExecutionIO(value strictjson.Value) error {
+func (p *parser) parseExecutionIO(value strictjson.Value) ([]executionIO, error) {
 	items, err := array(value)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	result := make([]executionIO, 0, len(items))
 	var previousRole string
 	var previousArtifact string
 	for index, item := range items {
 		fields, err := object(item, "artifact", "role")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		role, err := nonemptyText(fields["role"])
 		if err != nil {
-			return err
+			return nil, err
 		}
 		artifactSpelling, err := text(fields["artifact"])
 		if err != nil {
-			return err
+			return nil, err
 		}
 		artifact, err := protocol.ParseDigest(artifactSpelling)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if index != 0 && (previousRole > role || previousRole == role && previousArtifact >= artifactSpelling) {
-			return rejection.New(rejection.NoncanonicalOrder, "Axiom Evidence execution I/O is not sorted and unique by role and artifact")
+			return nil, rejection.New(rejection.NoncanonicalOrder, "Axiom Evidence execution I/O is not sorted and unique by role and artifact")
 		}
 		previousRole = role
 		previousArtifact = artifactSpelling
 		p.artifactRefs[artifact] = struct{}{}
+		result = append(result, executionIO{artifact: artifact, role: role})
 	}
-	return nil
+	return result, nil
 }
 
 func parseExecutionLimits(value strictjson.Value) error {

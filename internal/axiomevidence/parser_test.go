@@ -30,6 +30,7 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 		"chk-resource-01": rejection.ResourceLimit,
 	}
 	parsed := 0
+	complete := 0
 	uniqueEvidence := make(map[protocol.Digest]struct{})
 	uniqueIR := make(map[protocol.Digest]struct{})
 	for _, entry := range entries {
@@ -73,6 +74,14 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 			if err := document.VerifyIRSubject(irDocument.ContentDigest, irDocument.DomainDigest); err != nil {
 				t.Fatal(err)
 			}
+			completenessErr := document.VerifyObligationCompleteness(irDocument)
+			if name == "chk-obligation-01" {
+				assertCode(t, completenessErr, rejection.ObligationMismatch)
+			} else if completenessErr != nil {
+				t.Fatal(completenessErr)
+			} else {
+				complete++
+			}
 			if document.Counts.Artifacts == 0 || document.Counts.Executions == 0 ||
 				document.Counts.Obligations == 0 || document.Counts.Tools == 0 {
 				t.Fatal("Evidence parser omitted a required top-level entry collection")
@@ -84,6 +93,9 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 	}
 	if parsed != 25 {
 		t.Fatalf("expected 25 identity-valid Evidence scenarios, got %d", parsed)
+	}
+	if complete != 24 {
+		t.Fatalf("expected 24 obligation-complete Evidence scenarios, got %d", complete)
 	}
 	if len(uniqueEvidence) != 25 {
 		t.Fatalf("expected 25 unique identity-valid Evidence documents, got %d", len(uniqueEvidence))
@@ -125,6 +137,13 @@ func TestParseStructureRejectsClosedBoundaryViolations(t *testing.T) {
 			"noncanonical artifact order",
 			func(t *testing.T, input []byte) []byte {
 				return swapFirstTwoObjects(t, input, "artifacts")
+			},
+			rejection.NoncanonicalOrder,
+		},
+		{
+			"noncanonical obligation order",
+			func(t *testing.T, input []byte) []byte {
+				return swapFirstTwoObjects(t, input, "obligations")
 			},
 			rejection.NoncanonicalOrder,
 		},

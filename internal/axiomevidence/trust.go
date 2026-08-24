@@ -33,7 +33,8 @@ func (p *parser) parseTrust(value strictjson.Value) (int, error) {
 		if err != nil {
 			return err
 		}
-		if _, err := requireOneOf(fields["category"], trustCategories, "unsupported Axiom Evidence trust category"); err != nil {
+		category, err := requireOneOf(fields["category"], trustCategories, "unsupported Axiom Evidence trust category")
+		if err != nil {
 			return err
 		}
 		if _, err := nonemptyText(fields["claim"]); err != nil {
@@ -49,7 +50,7 @@ func (p *parser) parseTrust(value strictjson.Value) (int, error) {
 		if err := p.parseScope(fields["scope"]); err != nil {
 			return err
 		}
-		p.trust[id] = struct{}{}
+		p.trust[id] = trustDefinition{category: category}
 		return nil
 	})
 }

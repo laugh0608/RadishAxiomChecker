@@ -1,6 +1,7 @@
 package axiomevidence
 
 import (
+	"radishaxiom.dev/independent-checker-go/internal/axiomir"
 	"radishaxiom.dev/independent-checker-go/internal/protocol"
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
 	"radishaxiom.dev/independent-checker-go/internal/strictjson"
@@ -17,12 +18,26 @@ type toolDefinition struct {
 	roles map[string]struct{}
 }
 
+type executionIO struct {
+	artifact protocol.Digest
+	role     string
+}
+
+type executionDefinition struct {
+	inputs  []executionIO
+	outputs []executionIO
+}
+
+type trustDefinition struct {
+	category string
+}
+
 type parser struct {
 	artifacts   map[protocol.Digest]artifactDefinition
 	tools       map[protocol.Digest]toolDefinition
-	executions  map[protocol.Digest]struct{}
-	obligations map[protocol.Digest]struct{}
-	trust       map[protocol.Digest]struct{}
+	executions  map[protocol.Digest]executionDefinition
+	obligations map[protocol.Digest]axiomir.ObligationDefinition
+	trust       map[protocol.Digest]trustDefinition
 	uncovered   map[protocol.Digest]struct{}
 
 	artifactRefs   map[protocol.Digest]struct{}
@@ -33,9 +48,10 @@ type parser struct {
 	documentRefs   map[protocol.Digest]struct{}
 	conclusionRefs []protocol.Digest
 
-	producer         protocol.Digest
-	irArtifact       protocol.Digest
-	irDocumentDigest protocol.Digest
+	producer          protocol.Digest
+	obligationProfile string
+	irArtifact        protocol.Digest
+	irDocumentDigest  protocol.Digest
 }
 
 // ParseStructure parses canonical Axiom Evidence v0.1 bytes and verifies the
@@ -70,9 +86,9 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 	p := parser{
 		artifacts:      make(map[protocol.Digest]artifactDefinition),
 		tools:          make(map[protocol.Digest]toolDefinition),
-		executions:     make(map[protocol.Digest]struct{}),
-		obligations:    make(map[protocol.Digest]struct{}),
-		trust:          make(map[protocol.Digest]struct{}),
+		executions:     make(map[protocol.Digest]executionDefinition),
+		obligations:    make(map[protocol.Digest]axiomir.ObligationDefinition),
+		trust:          make(map[protocol.Digest]trustDefinition),
 		uncovered:      make(map[protocol.Digest]struct{}),
 		artifactRefs:   make(map[protocol.Digest]struct{}),
 		toolRefs:       make(map[protocol.Digest]struct{}),
@@ -88,7 +104,8 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 	if err := p.parseSubject(root["subject"]); err != nil {
 		return Document{}, err
 	}
-	if err := parseObligationProfile(root["obligation_profile"]); err != nil {
+	p.obligationProfile, err = parseObligationProfile(root["obligation_profile"])
+	if err != nil {
 		return Document{}, err
 	}
 	toolCount, err := p.parseTools(root["tools"])
@@ -134,24 +151,32 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 			Trust:       trustCount,
 			Uncovered:   uncoveredCount,
 		},
-		irArtifact:       p.irArtifact,
-		irDocumentDigest: p.irDocumentDigest,
+		irArtifact:        p.irArtifact,
+		irDocumentDigest:  p.irDocumentDigest,
+		obligationProfile: p.obligationProfile,
+		executions:        cloneExecutions(p.executions),
+		obligations:       cloneObligations(p.obligations),
+		trust:             cloneTrust(p.trust),
 	}, nil
 }
 
-func parseObligationProfile(value strictjson.Value) error {
+func parseObligationProfile(value strictjson.Value) (string, error) {
 	fields, err := object(value, "name", "version")
 	if err != nil {
-		return err
+		return "", err
 	}
 	allowed := map[string]struct{}{
 		"keyed-finite-table-benchmark":    {},
 		"keyed-finite-table-verification": {},
 	}
-	if _, err := requireOneOf(fields["name"], allowed, "unsupported Axiom Evidence obligation profile"); err != nil {
-		return err
+	name, err := requireOneOf(fields["name"], allowed, "unsupported Axiom Evidence obligation profile")
+	if err != nil {
+		return "", err
 	}
-	return requireText(fields["version"], "0.1", rejection.UnsupportedVersion, "unsupported Axiom Evidence obligation profile version")
+	if err := requireText(fields["version"], "0.1", rejection.UnsupportedVersion, "unsupported Axiom Evidence obligation profile version"); err != nil {
+		return "", err
+	}
+	return name, nil
 }
 
 func (p *parser) parseSubject(value strictjson.Value) error {

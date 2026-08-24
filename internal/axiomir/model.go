@@ -1,6 +1,6 @@
-// Package axiomir implements the independent checker's first strict Axiom IR
-// v0.1 structure slice. It deliberately does not perform obligation rebuild,
-// semantic verification, Evidence checking, or result aggregation.
+// Package axiomir implements the independent checker's strict Axiom IR v0.1
+// structure and locked obligation-reconstruction model. It does not discharge
+// obligations, inspect Evidence states, or aggregate an independent result.
 package axiomir
 
 import (
@@ -25,6 +25,10 @@ type Document struct {
 	ContentDigest protocol.Digest
 	DomainDigest  protocol.Digest
 	Counts        Counts
+
+	staticObligations []ObligationDefinition
+	inputInterfaces   []string
+	outputInterfaces  []string
 }
 
 // VerifyDomainDigest binds canonical document bytes to an externally supplied
@@ -34,4 +38,50 @@ func (document Document) VerifyDomainDigest(expected protocol.Digest) error {
 		return rejection.New(rejection.DigestMismatch, "Axiom IR document domain digest mismatch")
 	}
 	return nil
+}
+
+// ObligationDefinition is the semantic, result-free definition independently
+// reconstructed from Axiom IR. Evidence serialization and result state are not
+// part of this model.
+type ObligationDefinition struct {
+	Expectation string
+	Kind        string
+	Subject     ObligationSubject
+}
+
+// ObligationSubject is the closed anchor union exercised by the locked Axiom
+// IR and Evidence v0.1 profiles. Only fields belonging to Kind are populated.
+type ObligationSubject struct {
+	Kind             string
+	Artifact         protocol.Digest
+	ID               protocol.Digest
+	IRDocumentDigest protocol.Digest
+	Path             []string
+	Direction        string
+	Interface        string
+	Name             string
+	Category         string
+	Scope            protocol.Digest
+}
+
+// StaticObligationDefinitions returns a defensive copy of the obligations
+// determined solely by the parsed IR and semantics profile.
+func (document Document) StaticObligationDefinitions() []ObligationDefinition {
+	result := append([]ObligationDefinition(nil), document.staticObligations...)
+	for index := range result {
+		result[index].Subject.Path = append([]string(nil), result[index].Subject.Path...)
+	}
+	return result
+}
+
+// InputInterfaces returns the canonical input port names used by the benchmark
+// profile to reconstruct interface-level conformance obligations.
+func (document Document) InputInterfaces() []string {
+	return append([]string(nil), document.inputInterfaces...)
+}
+
+// OutputInterfaces returns the canonical output names used when the explicit
+// benchmark execution boundary contains an output comparison.
+func (document Document) OutputInterfaces() []string {
+	return append([]string(nil), document.outputInterfaces...)
 }

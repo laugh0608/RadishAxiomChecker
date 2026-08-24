@@ -1,6 +1,6 @@
 # Axiom Evidence v0.1 严格结构与身份切片
 
-本文冻结独立 checker 首个 Axiom Evidence parser 的实际声明范围。规范真相源仍是 RadishAxiom 主仓库按摘要锁定的 `docs/evidence/axiom-evidence-v0.md`；本实现没有导入、复制或调用生产 Rust `raxc` 的 Evidence parser、聚合器、义务生成器、反例重放器或测试 helper。
+本文冻结独立 checker 首个 Axiom Evidence parser 的实际声明范围。规范真相源仍是 RadishAxiom 主仓库按摘要锁定的 `docs/evidence/axiom-evidence-v0.md`；本实现没有导入、复制或调用生产 Rust `raxc` 的 Evidence parser、聚合器、义务生成器、反例重放器或测试 helper。后续已经增加的义务集合比较入口见 [Axiom Evidence v0.1 obligation completeness 切片](axiom-evidence-obligation-completeness-v0.1.md)，但不会改变本文的结构成功边界。
 
 ## 输入与身份分层
 
@@ -65,7 +65,7 @@ map 只用于已知摘要查找，不参与规范输出、摘要或错误顺序�
 - subject artifact 不解析到顶层 artifact 清单中的 `axiom-ir` `0.1` 描述；
 - subject 的 IR raw content digest 或 IR document domain digest 与独立 Axiom IR parser 结果不一致。
 
-锁定 bundle 的 Evidence artifact 清单包含由 pipeline receipt 间接绑定、但未在 Evidence 顶层字段再次直接引用的 options / policy 制品。当前结构 parser 不读取 receipt 内部，因此只保证所有直接引用闭合，不在本切片声称完成“顶层 artifact 是否最终被完整消费”的语义检查；该判断必须与后续 execution / support、artifact graph 和 obligation 完整性切片一起收口。
+锁定 bundle 的 Evidence artifact 清单包含由 pipeline receipt 间接绑定、但未在 Evidence 顶层字段再次直接引用的 options / policy 制品。当前结构 parser 不读取 receipt 内部，因此只保证所有直接引用闭合，不在本切片声称完成“顶层 artifact 是否最终被完整消费”的语义检查；该判断仍须由后续 execution / support 与 artifact graph 切片收口。义务完整性切片只消费明确的 benchmark I/O role，不把 receipt 或生产 obligation-set 当作真相源。
 
 ## 明确不形成的结论
 
@@ -74,7 +74,7 @@ map 只用于已知摘要查找，不参与规范输出、摘要或错误顺序�
 当前实现不：
 
 - 判断 obligation `expectation` 与五种 result 状态是否配对正确；
-- 从 IR 重建或比较完整 obligation set，也不解析 obligation anchor 到具体 IR node / contract / expression；
+- `ParseStructure` 本身不判定完整性；调用方必须显式传入独立解析的 IR，再调用 `VerifyObligationCompleteness`。该比较入口仍不判断 obligation result 状态；
 - 判断 execution kind、tool role、execution result、support、assumption 或 trust category 的语义搭配；
 - 检查未直接引用 artifact 的最终可达性；
 - 重放 concrete check、counterexample、world、`WF` / `Pre` 或 witness 最小性；
@@ -88,7 +88,7 @@ map 只用于已知摘要查找，不参与规范输出、摘要或错误顺序�
 
 28 个 bundle 的入口边界保持如下：
 
-- 25 个身份有效场景进入 Evidence parser；它们覆盖 25 份唯一 Evidence 和 12 份唯一 IR；
+- 25 个身份有效场景进入 Evidence parser；它们覆盖 25 份唯一 Evidence 和 12 份唯一 IR，其中 24 个通过后续 obligation completeness，`chk-obligation-01` 在该后续边界拒绝；
 - `chk-bundle-01`、`chk-digest-01`、`chk-resource-01` 分别在缺失 artifact、raw content SHA-256、资源限制层拒绝，Evidence parser 不得越过这些失败；
 - 25 份 Evidence 的 raw content digest 与 manifest 一致，document domain digest 与版本化 bundle-set / expected result 一致，subject 双摘要与独立 Axiom IR parser 一致；
 - parser 负例覆盖未知 member / version / support tag、非规范 artifact / ref 顺序、definition domain ID 漂移、悬空 producer、重复 conclusion ref、错误 subject artifact，以及 Evidence document / IR subject 外部绑定不匹配；

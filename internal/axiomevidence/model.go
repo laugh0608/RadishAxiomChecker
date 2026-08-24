@@ -1,6 +1,7 @@
 package axiomevidence
 
 import (
+	"radishaxiom.dev/independent-checker-go/internal/axiomir"
 	"radishaxiom.dev/independent-checker-go/internal/protocol"
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
 )
@@ -16,15 +17,20 @@ type Counts struct {
 	Uncovered   int
 }
 
-// Document is the identity-only result of the Axiom Evidence structure slice.
-// It is not an independent-check result and makes no obligation-state claim.
+// Document is the identity-bearing result of Axiom Evidence structural parsing.
+// It retains only the metadata needed for the separate completeness comparison;
+// it is not an independent-check result and makes no obligation-state claim.
 type Document struct {
 	ContentDigest protocol.Digest
 	DomainDigest  protocol.Digest
 	Counts        Counts
 
-	irArtifact       protocol.Digest
-	irDocumentDigest protocol.Digest
+	irArtifact        protocol.Digest
+	irDocumentDigest  protocol.Digest
+	obligationProfile string
+	executions        map[protocol.Digest]executionDefinition
+	obligations       map[protocol.Digest]axiomir.ObligationDefinition
+	trust             map[protocol.Digest]trustDefinition
 }
 
 // VerifyDomainDigest compares the independently recomputed Evidence document

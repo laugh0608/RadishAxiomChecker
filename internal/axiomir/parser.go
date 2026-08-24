@@ -83,12 +83,19 @@ type tableDefinition struct {
 
 type nodeDefinition struct {
 	kind         string
+	definition   strictjson.Value
 	predecessors []protocol.Digest
 	tableType    protocol.Digest
 	expressions  []nodeExpressionCheck
 	joinPairs    []joinPair
 	groupKeys    []groupKey
 	aggregates   []groupAggregate
+}
+
+type contractDefinition struct {
+	kind       string
+	role       string
+	definition strictjson.Value
 }
 
 type nodeExpressionCheck struct {
@@ -114,20 +121,23 @@ type groupAggregate struct {
 }
 
 type parser struct {
-	enums       map[protocol.Digest]enumDefinition
-	records     map[protocol.Digest]recordDefinition
-	tables      map[protocol.Digest]tableDefinition
-	nodes       map[protocol.Digest]nodeDefinition
-	nodeOrder   []protocol.Digest
-	inputPorts  map[string]protocol.Digest
-	outputNames map[string]protocol.Digest
+	enums         map[protocol.Digest]enumDefinition
+	records       map[protocol.Digest]recordDefinition
+	tables        map[protocol.Digest]tableDefinition
+	nodes         map[protocol.Digest]nodeDefinition
+	nodeOrder     []protocol.Digest
+	contracts     map[protocol.Digest]contractDefinition
+	contractOrder []protocol.Digest
+	inputPorts    map[string]protocol.Digest
+	outputNames   map[string]protocol.Digest
 }
 
 // ParseStructure parses canonical Axiom IR v0.1 bytes and verifies the closed
 // structure profile documented by this package, all content-addressed entry
 // IDs and references, checks declaration, expression, primary-key, and node
-// table relationship well-formedness plus node DAG shape, and recomputes
-// document-domain identity. It does not rebuild or discharge obligations.
+// table relationship well-formedness plus node DAG shape, recomputes
+// document-domain identity, and retains the independently derived static
+// obligation model. It does not discharge obligations or inspect Evidence states.
 func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 	value, err := strictjson.ParseCanonical(data, limits)
 	if err != nil {
@@ -161,13 +171,15 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 	}
 
 	p := parser{
-		enums:       make(map[protocol.Digest]enumDefinition),
-		records:     make(map[protocol.Digest]recordDefinition),
-		tables:      make(map[protocol.Digest]tableDefinition),
-		nodes:       make(map[protocol.Digest]nodeDefinition),
-		nodeOrder:   make([]protocol.Digest, 0),
-		inputPorts:  make(map[string]protocol.Digest),
-		outputNames: make(map[string]protocol.Digest),
+		enums:         make(map[protocol.Digest]enumDefinition),
+		records:       make(map[protocol.Digest]recordDefinition),
+		tables:        make(map[protocol.Digest]tableDefinition),
+		nodes:         make(map[protocol.Digest]nodeDefinition),
+		nodeOrder:     make([]protocol.Digest, 0),
+		contracts:     make(map[protocol.Digest]contractDefinition),
+		contractOrder: make([]protocol.Digest, 0),
+		inputPorts:    make(map[string]protocol.Digest),
+		outputNames:   make(map[string]protocol.Digest),
 	}
 	enumCount, err := p.parseEntries(root["enum_types"], domainEnumType, p.parseEnumDefinition)
 	if err != nil {
@@ -203,9 +215,15 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 		return Document{}, err
 	}
 
+	domain := domainDigest(domainDocument, data)
+	staticObligations, inputInterfaces, outputInterfaces, err := p.reconstructObligationModel(domain)
+	if err != nil {
+		return Document{}, err
+	}
+
 	return Document{
 		ContentDigest: contentDigest(data),
-		DomainDigest:  domainDigest(domainDocument, data),
+		DomainDigest:  domain,
 		Counts: Counts{
 			Contracts:   contractCount,
 			EnumTypes:   enumCount,
@@ -214,6 +232,9 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 			RecordTypes: recordCount,
 			TableTypes:  tableCount,
 		},
+		staticObligations: staticObligations,
+		inputInterfaces:   inputInterfaces,
+		outputInterfaces:  outputInterfaces,
 	}, nil
 }
 

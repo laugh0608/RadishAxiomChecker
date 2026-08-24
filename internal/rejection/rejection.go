@@ -24,6 +24,7 @@ const (
 	MissingRequiredMember      Code = "missing-required-member"
 	NoncanonicalJSON           Code = "noncanonical-json"
 	NoncanonicalOrder          Code = "noncanonical-order"
+	ObligationMismatch         Code = "obligation-mismatch"
 	RequestBindingMismatch     Code = "request-binding-mismatch"
 	ResourceLimit              Code = "resource-limit"
 	UnknownMember              Code = "unknown-member"

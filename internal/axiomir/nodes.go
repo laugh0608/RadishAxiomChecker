@@ -15,7 +15,7 @@ func (p *parser) parseNodeDefinition(value strictjson.Value, id protocol.Digest)
 	if err != nil {
 		return err
 	}
-	definition := nodeDefinition{kind: kind}
+	definition := nodeDefinition{kind: kind, definition: value}
 	switch kind {
 	case "input":
 		fields, err := object(value, "kind", "port", "table_type")
