@@ -243,6 +243,7 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 		enums:             cloneEnumDefinitions(p.enums),
 		records:           cloneRecordDefinitions(p.records),
 		tables:            cloneTableDefinitions(p.tables),
+		contracts:         cloneContractDefinitions(p.contracts),
 		inputTables:       inputTables,
 		outputTables:      outputTables,
 		assumeContracts:   assumeContracts,

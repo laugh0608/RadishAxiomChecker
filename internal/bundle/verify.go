@@ -33,12 +33,18 @@ type Verified struct {
 	Manifest       protocol.Manifest
 	RequestDigest  protocol.Digest
 	ManifestDigest protocol.Digest
+	root           string
+	artifactLimit  uint64
 }
 
 // Verify parses and verifies a read-only bundle without mutating it.
 func Verify(root string) (Verified, error) {
 	if err := verifyRoot(root); err != nil {
 		return Verified{}, err
+	}
+	absoluteRoot, err := filepath.Abs(root)
+	if err != nil {
+		return Verified{}, rejection.New(rejection.IsolationBoundaryViolation, "bundle root cannot be resolved to an absolute path")
 	}
 	requestBytes, _, err := readRegular(filepath.Join(root, "request.jcs"), hardArtifactBytes)
 	if err != nil {
@@ -81,7 +87,45 @@ func Verify(root string) (Verified, error) {
 		Manifest:       manifest,
 		RequestDigest:  requestDigest,
 		ManifestDigest: manifestDigest,
+		root:           absoluteRoot,
+		artifactLimit:  artifactLimit,
 	}, nil
+}
+
+// ReadArtifact reopens one manifest-listed artifact from the verified bundle,
+// rechecking ordinary-file identity, declared length, and raw SHA-256. The
+// bundle may have changed since Verify, so a successful earlier verification
+// is never used as a mutable byte cache.
+func (verified Verified) ReadArtifact(digest protocol.Digest) ([]byte, error) {
+	var artifact protocol.Artifact
+	found := false
+	for _, candidate := range verified.Manifest.Artifacts {
+		if candidate.ContentDigest == digest {
+			artifact = candidate
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, rejection.New(rejection.ArtifactMissing, "artifact is not listed by the verified bundle manifest")
+	}
+	if artifact.ByteLength > verified.artifactLimit {
+		return nil, rejection.New(rejection.ResourceLimit, "artifact exceeds the verified request byte limit")
+	}
+	data, length, err := readRegular(
+		filepath.Join(verified.root, "blobs", "sha256", digest.BlobName()),
+		artifact.ByteLength,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if length != artifact.ByteLength {
+		return nil, rejection.New(rejection.LengthMismatch, "artifact length differs from the verified manifest")
+	}
+	if digestBytes(data) != digest {
+		return nil, rejection.New(rejection.DigestMismatch, "artifact bytes changed after bundle verification")
+	}
+	return data, nil
 }
 
 func verifyRoot(root string) error {

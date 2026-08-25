@@ -32,6 +32,7 @@ type Document struct {
 	enums             map[protocol.Digest]enumDefinition
 	records           map[protocol.Digest]recordDefinition
 	tables            map[protocol.Digest]tableDefinition
+	contracts         map[protocol.Digest]contractDefinition
 	inputTables       map[string]protocol.Digest
 	outputTables      map[string]protocol.Digest
 	assumeContracts   []protocol.Digest

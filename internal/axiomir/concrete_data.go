@@ -59,6 +59,28 @@ func (document Document) CheckInputWorld(world ConcreteWorld) WorldCheck {
 	return document.checkWorld(world, document.inputTables)
 }
 
+// CheckCompleteInputWorld requires the world to contain exactly the complete
+// input interface set in addition to satisfying declaration-level WF.
+func (document Document) CheckCompleteInputWorld(world ConcreteWorld) WorldCheck {
+	check := document.checkWorld(world, document.inputTables)
+	seen := make(map[string]struct{}, len(world.Tables))
+	for _, table := range world.Tables {
+		seen[table.Name] = struct{}{}
+	}
+	if len(seen) != len(document.inputTables) {
+		check.Anchored = false
+		check.Violations = append(check.Violations, "concrete input does not contain the complete IR input interface set")
+	} else {
+		for name := range document.inputTables {
+			if _, exists := seen[name]; !exists {
+				check.Anchored = false
+				check.Violations = append(check.Violations, "concrete input is missing a declared IR input interface")
+			}
+		}
+	}
+	return finishWorldCheck(check)
+}
+
 // CheckOutputWorld applies the same declaration-level check to named outputs.
 // It is retained for the following concrete-artifact slice.
 func (document Document) CheckOutputWorld(world ConcreteWorld) WorldCheck {
@@ -215,7 +237,7 @@ func (document Document) checkConcreteValue(
 			check.Violations = append(check.Violations, "world value kind differs from IR Int")
 			return concreteKeyPart{}, false
 		}
-		integer, ok := new(big.Int).SetString(actual.Integer, 10)
+		integer, ok := parseConcreteInteger(actual.Integer)
 		lower, lowerOK := new(big.Int).SetString(expected.lower, 10)
 		upper, upperOK := new(big.Int).SetString(expected.upper, 10)
 		if !ok || !lowerOK || !upperOK {
@@ -254,6 +276,26 @@ func (document Document) checkConcreteValue(
 		check.Violations = append(check.Violations, "world field type is outside the retained concrete-data profile")
 		return concreteKeyPart{}, false
 	}
+}
+
+func parseConcreteInteger(raw string) (*big.Int, bool) {
+	if raw == "" || raw == "-0" || raw[0] == '+' || len(raw) > 1 && raw[0] == '0' {
+		return nil, false
+	}
+	start := 0
+	if raw[0] == '-' {
+		if len(raw) == 1 || raw[1] == '0' {
+			return nil, false
+		}
+		start = 1
+	}
+	for index := start; index < len(raw); index++ {
+		if raw[index] < '0' || raw[index] > '9' {
+			return nil, false
+		}
+	}
+	integer, ok := new(big.Int).SetString(raw, 10)
+	return integer, ok
 }
 
 func compareConcreteKeys(left, right []concreteKeyPart) int {
@@ -297,6 +339,51 @@ func finishWorldCheck(check WorldCheck) WorldCheck {
 	check.WellFormed = check.Anchored && len(check.Violations) == 0
 	check.Violations = append([]string(nil), check.Violations...)
 	return check
+}
+
+// WorldContainsProjection checks whether every projected table row appears in
+// a distinct row of the full input world. It compares retained typed values
+// exactly and does not infer omitted tables or fields.
+func WorldContainsProjection(full, projection ConcreteWorld) bool {
+	for _, projectedTable := range projection.Tables {
+		var fullTable *ConcreteTable
+		for tableIndex := range full.Tables {
+			if full.Tables[tableIndex].Name == projectedTable.Name {
+				fullTable = &full.Tables[tableIndex]
+				break
+			}
+		}
+		if fullTable == nil {
+			return false
+		}
+		matched := make([]bool, len(fullTable.Rows))
+		for _, projectedRow := range projectedTable.Rows {
+			found := false
+			for rowIndex, fullRow := range fullTable.Rows {
+				if !matched[rowIndex] && equalConcreteRecord(fullRow, projectedRow) {
+					matched[rowIndex] = true
+					found = true
+					break
+				}
+			}
+			if !found {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func equalConcreteRecord(left, right ConcreteRecord) bool {
+	if left.RecordType != right.RecordType || len(left.Fields) != len(right.Fields) {
+		return false
+	}
+	for index := range left.Fields {
+		if left.Fields[index].Name != right.Fields[index].Name || left.Fields[index].Value != right.Fields[index].Value {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *parser) retainConcreteInterfaces() (
@@ -363,6 +450,14 @@ func cloneTableDefinitions(source map[protocol.Digest]tableDefinition) map[proto
 	result := make(map[protocol.Digest]tableDefinition, len(source))
 	for id, definition := range source {
 		definition.primaryKey = append([]string(nil), definition.primaryKey...)
+		result[id] = definition
+	}
+	return result
+}
+
+func cloneContractDefinitions(source map[protocol.Digest]contractDefinition) map[protocol.Digest]contractDefinition {
+	result := make(map[protocol.Digest]contractDefinition, len(source))
+	for id, definition := range source {
 		result[id] = definition
 	}
 	return result

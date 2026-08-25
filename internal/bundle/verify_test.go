@@ -26,6 +26,27 @@ func TestVerifyImportedBundle(t *testing.T) {
 	if len(verified.Manifest.Artifacts) != 1 {
 		t.Fatalf("unexpected artifact count: %d", len(verified.Manifest.Artifacts))
 	}
+	data, err := verified.ReadArtifact(verified.Manifest.Artifacts[0].ContentDigest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "{}" {
+		t.Fatalf("unexpected artifact bytes: %q", data)
+	}
+}
+
+func TestReadArtifactRejectsPostVerifyDrift(t *testing.T) {
+	root := validBundle(t)
+	verified, err := Verify(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifact := verified.Manifest.Artifacts[0]
+	if err := os.WriteFile(filepath.Join(root, "blobs", "sha256", artifact.ContentDigest.BlobName()), []byte("{ }"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err = verified.ReadArtifact(artifact.ContentDigest)
+	assertBundleCode(t, err, rejection.ResourceLimit)
 }
 
 func TestVerifyImportedTwentyEightBundleBoundary(t *testing.T) {

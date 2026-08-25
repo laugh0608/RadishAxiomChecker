@@ -33,8 +33,11 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 	complete := 0
 	stateComplete := 0
 	worldComplete := 0
+	inputComplete := 0
+	failedInputs := 0
 	uniqueEvidence := make(map[protocol.Digest]struct{})
 	uniqueIR := make(map[protocol.Digest]struct{})
+	uniqueInputs := make(map[protocol.Digest]struct{})
 	for _, entry := range entries {
 		name := entry.Name()
 		t.Run(name, func(t *testing.T) {
@@ -91,6 +94,17 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 					t.Fatal(err)
 				}
 				worldComplete++
+				inputCheck, err := document.VerifyConcreteInputs(
+					irDocument, verified.ReadArtifact, concreteLimitsFrom(verified.Request),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				inputComplete++
+				failedInputs += inputCheck.Failed
+				for _, artifact := range inputCheck.Artifacts {
+					uniqueInputs[artifact] = struct{}{}
+				}
 			}
 			if document.Counts.Artifacts == 0 || document.Counts.Executions == 0 ||
 				document.Counts.Obligations == 0 || document.Counts.Tools == 0 {
@@ -113,11 +127,30 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 	if worldComplete != 24 {
 		t.Fatalf("expected 24 counterexample-world-complete Evidence scenarios, got %d", worldComplete)
 	}
+	if inputComplete != 24 {
+		t.Fatalf("expected 24 concrete-input-complete Evidence scenarios, got %d", inputComplete)
+	}
+	if len(uniqueInputs) != 12 {
+		t.Fatalf("expected 12 unique host-input artifacts, got %d", len(uniqueInputs))
+	}
+	if failedInputs != 4 {
+		t.Fatalf("expected four failed invalid-input classifications, got %d", failedInputs)
+	}
 	if len(uniqueEvidence) != 25 {
 		t.Fatalf("expected 25 unique identity-valid Evidence documents, got %d", len(uniqueEvidence))
 	}
 	if len(uniqueIR) != 12 {
 		t.Fatalf("expected 12 unique identity-valid IR documents, got %d", len(uniqueIR))
+	}
+}
+
+func concreteLimitsFrom(request protocol.Request) axiomevidence.ConcreteInputLimits {
+	workingMemory, _ := request.Limit("working-memory")
+	semanticSteps, _ := request.Limit("semantic-steps")
+	return axiomevidence.ConcreteInputLimits{
+		JSON:             limitsFrom(request),
+		MaxLogicalBytes:  workingMemory,
+		MaxSemanticSteps: semanticSteps,
 	}
 }
 

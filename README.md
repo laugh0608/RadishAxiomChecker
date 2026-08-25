@@ -14,10 +14,11 @@
 - [Axiom Evidence v0.1 obligation completeness 切片](docs/axiom-evidence-obligation-completeness-v0.1.md)：只凭独立解析的 IR、profile、显式 benchmark execution I/O 边界和 trust 条目重建完整 definition / ID 集合，精确拒绝缺失、多余、expectation 与 anchor 漂移；不读取 `axiom-obligation-set` 制品作为真相源。
 - [Axiom Evidence v0.1 state / support 切片](docs/axiom-evidence-state-support-v0.1.md)：核对 expectation 与五态矩阵、execution kind / result、精确 tool role、unknown attempt reason、trusted scope、backend attestation 绑定，以及 checked result 的有限 artifact 闭包。
 - [Axiom Evidence v0.1 counterexample world / WF 切片](docs/axiom-evidence-counterexample-worlds-v0.1.md)：保留失败见证的受界值、闭合记录、表和 world，以独立 IR 声明核对类型、范围、容量、主键唯一性与规范顺序，并区分 input-conformance 的预期非 WF 输入。
+- [Axiom Evidence v0.1 concrete input / Pre 切片](docs/axiom-evidence-concrete-inputs-v0.1.md)：从 Evidence 与 execution 的精确 `host-input` 边界读取 `axiom-benchmark-data` `0.1`，按 IR 重建完整输入、核对 `WF`、独立求值锁定 assume 子集，并确认 input-conformance 的 `checked` / `failed` 分类和 witness 制品投影。
 
-Git commit / tree 不充当 `checker.source`，仓库也不生成 checker binary 或 `checker.artifact`。Axiom IR、Evidence 结构、obligation completeness、state / support 与 counterexample world / WF 闭合通过不等于语义接受：当前实现不求值 `Pre`、不执行 IR、不确认目标义务确已违反，也不重放 kernel rule 或 concrete artifact，不验证 backend attestation 真值，不重算 conclusion，不检查 certificate，不生成四态独立结果或产品 CLI。测试通过仅表示这些实现路径被检查，不构成形式证明或跨平台结论。
+Git commit / tree 不充当 `checker.source`，仓库也不生成 checker binary 或 `checker.artifact`。Axiom IR、Evidence 结构、obligation completeness、state / support、counterexample world / WF 与 concrete input / Pre 闭合通过不等于语义接受：当前实现不执行 transform IR、不确认非输入目标义务确已违反，也不重放 kernel rule，不验证 backend attestation 真值，不比较 host / golden output，不重算 conclusion，不检查 certificate，不生成四态独立结果或产品 CLI。测试通过仅表示这些实现路径被检查，不构成形式证明或跨平台结论。
 
-当前资源实现只收口该 parser 切片实际消费的边界：request/manifest 单文档字节、JSON 容器深度、JSON 成员/元素、严格 JSON token、单 artifact 字节、manifest 唯一 artifact 总字节和流式 SHA-256。`wall-clock` 与逻辑 `working-memory` 字段会被闭合解析，但完整的跨阶段累计计数、内部 `incomplete` 结果形成和外层进程限制仍属于后续切片；这里不会把未实现的计数伪装成已执行。
+当前资源实现收口实际消费的 request / manifest / artifact 字节、JSON 深度 / item / step、bundle 总字节、流式 SHA-256、concrete input 确定性逻辑字节和 assume 求值 step。`wall-clock` 尚未形成 checker 内部中断机制，完整跨阶段累计计数、内部 `incomplete` 结果形成和外层进程限制仍属于后续切片；这里不会把未实现的计数伪装成已执行。
 
 ## 工具链与验证
 

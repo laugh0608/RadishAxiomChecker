@@ -31,6 +31,38 @@ func TestParseCanonicalAcceptsProfileValues(t *testing.T) {
 	}
 }
 
+func TestParseDocumentAcceptsPrettyStrictJSON(t *testing.T) {
+	data := []byte(" { \n  \"z\" : \"\\u4e16\\u754c\",\n  \"a\": [true, false, \"\\/\"]\n}\n")
+	value, err := ParseDocument(data, testLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	members, ok := value.Members()
+	if !ok || len(members) != 2 || members[0].Name != "z" || members[1].Name != "a" {
+		t.Fatalf("unexpected relaxed document members: %+v", members)
+	}
+}
+
+func TestParseDocumentRetainsStrictEnvelopeChecks(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+		code rejection.Code
+	}{
+		{"duplicate member", []byte(`{"a": false, "a": true}`), rejection.DuplicateMember},
+		{"number", []byte(`{"a": 1}`), rejection.JSONNumberOrNull},
+		{"null", []byte(`{"a": null}`), rejection.JSONNumberOrNull},
+		{"invalid UTF-8", []byte{'"', 0xff, '"'}, rejection.InvalidUTF8},
+		{"BOM", []byte{0xef, 0xbb, 0xbf, '{', '}'}, rejection.NoncanonicalJSON},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := ParseDocument(test.data, testLimits)
+			assertCode(t, err, test.code)
+		})
+	}
+}
+
 func TestCanonicalBytesReplaysAcceptedInput(t *testing.T) {
 	tests := [][]byte{
 		[]byte(`{}`),

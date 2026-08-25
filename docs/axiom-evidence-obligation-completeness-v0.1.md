@@ -38,7 +38,7 @@ benchmark profile 另外生成：
 - 每个唯一 `golden-output` artifact 的 `output-conformance`；
 - 出现 golden-output boundary 时，每个 IR output interface 的 `output-conformance`。
 
-这些 role 只用于确定“必须存在何种 definition”的显式边界。本切片本身不判断 role 是否配给正确 execution kind、tool role、result、support 或 artifact format；调用方必须另行执行 [state / support 切片](axiom-evidence-state-support-v0.1.md)，后者仍不会提前冒充 concrete replay。
+这些 role 只用于确定“必须存在何种 definition”的显式边界。本切片本身不判断 role 是否配给正确 execution kind、tool role、result、support 或 artifact format；调用方必须继续执行 [state / support](axiom-evidence-state-support-v0.1.md)、[counterexample world / WF](axiom-evidence-counterexample-worlds-v0.1.md) 和 [concrete input / Pre](axiom-evidence-concrete-inputs-v0.1.md) 分层入口，任一较早成功都不能冒充后续真值检查。
 
 ## 锁定场景与负例
 
