@@ -84,6 +84,7 @@ type tableDefinition struct {
 
 type nodeDefinition struct {
 	kind         string
+	port         string
 	definition   strictjson.Value
 	predecessors []protocol.Digest
 	tableType    protocol.Digest
@@ -243,9 +244,12 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 		enums:             cloneEnumDefinitions(p.enums),
 		records:           cloneRecordDefinitions(p.records),
 		tables:            cloneTableDefinitions(p.tables),
+		nodes:             cloneNodeDefinitions(p.nodes),
+		nodeOrder:         append([]protocol.Digest(nil), p.nodeOrder...),
 		contracts:         cloneContractDefinitions(p.contracts),
 		inputTables:       inputTables,
 		outputTables:      outputTables,
+		outputNodes:       cloneDigestMap(p.outputNames),
 		assumeContracts:   assumeContracts,
 	}, nil
 }

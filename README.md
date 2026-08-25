@@ -15,10 +15,11 @@
 - [Axiom Evidence v0.1 state / support 切片](docs/axiom-evidence-state-support-v0.1.md)：核对 expectation 与五态矩阵、execution kind / result、精确 tool role、unknown attempt reason、trusted scope、backend attestation 绑定，以及 checked result 的有限 artifact 闭包。
 - [Axiom Evidence v0.1 counterexample world / WF 切片](docs/axiom-evidence-counterexample-worlds-v0.1.md)：保留失败见证的受界值、闭合记录、表和 world，以独立 IR 声明核对类型、范围、容量、主键唯一性与规范顺序，并区分 input-conformance 的预期非 WF 输入。
 - [Axiom Evidence v0.1 concrete input / Pre 切片](docs/axiom-evidence-concrete-inputs-v0.1.md)：从 Evidence 与 execution 的精确 `host-input` 边界读取 `axiom-benchmark-data` `0.1`，按 IR 重建完整输入、核对 `WF`、独立求值锁定 assume 子集，并确认 input-conformance 的 `checked` / `failed` 分类和 witness 制品投影。
+- [Axiom Evidence v0.1 counterexample target replay 切片](docs/axiom-evidence-counterexample-targets-v0.1.md)：复用同一 concrete value / table / expression 语义，按稳定拓扑顺序解释锁定 5 类 node、18 类 expression 与 2 类 aggregate，核对 proof-failure 的 `WF ∧ Pre`、trace、observed、required field / key、目标违反及 paired-world 公开等价。
 
-Git commit / tree 不充当 `checker.source`，仓库也不生成 checker binary 或 `checker.artifact`。Axiom IR、Evidence 结构、obligation completeness、state / support、counterexample world / WF 与 concrete input / Pre 闭合通过不等于语义接受：当前实现不执行 transform IR、不确认非输入目标义务确已违反，也不重放 kernel rule，不验证 backend attestation 真值，不比较 host / golden output，不重算 conclusion，不检查 certificate，不生成四态独立结果或产品 CLI。测试通过仅表示这些实现路径被检查，不构成形式证明或跨平台结论。
+Git commit / tree 不充当 `checker.source`，仓库也不生成 checker binary 或 `checker.artifact`。Axiom IR、Evidence 结构、obligation completeness、state / support、counterexample world / WF、concrete input / Pre 与 proof-failure target replay 闭合通过不等于完整语义接受：有限解释只确认锁定具体 world 上的目标违反，不证明其他输入；当前实现也不重放 kernel rule，不验证 backend attestation 真值，不比较 host / golden output，不检查 minimality，不重算 conclusion，不检查 certificate，不生成四态独立结果或产品 CLI。测试通过仅表示这些实现路径被检查，不构成形式证明或跨平台结论。
 
-当前资源实现收口实际消费的 request / manifest / artifact 字节、JSON 深度 / item / step、bundle 总字节、流式 SHA-256、concrete input 确定性逻辑字节和 assume 求值 step。`wall-clock` 尚未形成 checker 内部中断机制，完整跨阶段累计计数、内部 `incomplete` 结果形成和外层进程限制仍属于后续切片；这里不会把未实现的计数伪装成已执行。
+当前资源实现收口实际消费的 request / manifest / artifact 字节、JSON 深度 / item / step、bundle 总字节、流式 SHA-256、concrete input 与 DAG table 的确定性逻辑字节，以及 assume、node、row、lookup、aggregate 与 contract replay step。`wall-clock` 尚未形成 checker 内部中断机制，完整跨阶段累计计数、内部 `incomplete` 结果形成和外层进程限制仍属于后续切片；这里不会把未实现的计数伪装成已执行。
 
 ## 工具链与验证
 

@@ -35,6 +35,9 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 	worldComplete := 0
 	inputComplete := 0
 	failedInputs := 0
+	targetComplete := 0
+	replayedProofs := 0
+	deferredComparisons := 0
 	uniqueEvidence := make(map[protocol.Digest]struct{})
 	uniqueIR := make(map[protocol.Digest]struct{})
 	uniqueInputs := make(map[protocol.Digest]struct{})
@@ -105,6 +108,15 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 				for _, artifact := range inputCheck.Artifacts {
 					uniqueInputs[artifact] = struct{}{}
 				}
+				targetCheck, err := document.VerifyCounterexampleTargets(
+					irDocument, counterexampleLimitsFrom(verified.Request),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				targetComplete++
+				replayedProofs += targetCheck.ReplayedProofs
+				deferredComparisons += targetCheck.DeferredComparisons
 			}
 			if document.Counts.Artifacts == 0 || document.Counts.Executions == 0 ||
 				document.Counts.Obligations == 0 || document.Counts.Tools == 0 {
@@ -136,6 +148,15 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 	if failedInputs != 4 {
 		t.Fatalf("expected four failed invalid-input classifications, got %d", failedInputs)
 	}
+	if targetComplete != 24 {
+		t.Fatalf("expected 24 counterexample-target-complete Evidence scenarios, got %d", targetComplete)
+	}
+	if replayedProofs != 8 {
+		t.Fatalf("expected eight replayed failed proof targets, got %d", replayedProofs)
+	}
+	if deferredComparisons != 3 {
+		t.Fatalf("expected three deferred host/output comparisons, got %d", deferredComparisons)
+	}
 	if len(uniqueEvidence) != 25 {
 		t.Fatalf("expected 25 unique identity-valid Evidence documents, got %d", len(uniqueEvidence))
 	}
@@ -149,6 +170,15 @@ func concreteLimitsFrom(request protocol.Request) axiomevidence.ConcreteInputLim
 	semanticSteps, _ := request.Limit("semantic-steps")
 	return axiomevidence.ConcreteInputLimits{
 		JSON:             limitsFrom(request),
+		MaxLogicalBytes:  workingMemory,
+		MaxSemanticSteps: semanticSteps,
+	}
+}
+
+func counterexampleLimitsFrom(request protocol.Request) axiomir.ExecutionLimits {
+	workingMemory, _ := request.Limit("working-memory")
+	semanticSteps, _ := request.Limit("semantic-steps")
+	return axiomir.ExecutionLimits{
 		MaxLogicalBytes:  workingMemory,
 		MaxSemanticSteps: semanticSteps,
 	}

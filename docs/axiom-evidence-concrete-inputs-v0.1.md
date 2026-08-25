@@ -2,6 +2,8 @@
 
 本文冻结独立 checker 对锁定 keyed-finite-table benchmark profile 的完整输入制品与前置条件检查。调用方必须依次通过 bundle、Axiom IR、Axiom Evidence 结构 / 身份、obligation completeness、state / support 和 counterexample world / `WF`；生产 `check-fixture` 的 `completed`、Evidence result 与预期独立结果都只是待核对声明。
 
+后续 proof-failure IR 执行与目标违反已经在 [counterexample target replay 切片](axiom-evidence-counterexample-targets-v0.1.md) 实现；本文的停止线只界定 `VerifyConcreteInputs` 自身，不能用来跳过该后续入口。
+
 ## Artifact 绑定与严格 JSON
 
 `VerifyConcreteInputs` 从 artifact-level `input-conformance` obligation 独立重建目标集合，并要求它与所有 execution 中标记为 `host-input` 的 artifact 集合精确一致。每个目标必须在 Evidence artifact 清单中声明为 `axiom-benchmark-data` `0.1`，再通过 `bundle.Verified.ReadArtifact` 重新打开普通文件并复核声明长度和原始 SHA-256；既有 bundle 验证不会被当作可变字节缓存。

@@ -10,7 +10,24 @@ import (
 type counterexampleDefinition struct {
 	kind          string
 	preconditions []protocol.Digest
+	trace         []counterexampleTraceStep
 	worlds        []axiomir.ConcreteWorld
+	observed      counterexampleObserved
+}
+
+type counterexampleTraceStep struct {
+	kind  string
+	ref   protocol.Digest
+	value string
+}
+
+type counterexampleObserved struct {
+	kind           string
+	obligation     protocol.Digest
+	requiredFields []string
+	requiredKeys   []string
+	actual         protocol.Digest
+	expected       protocol.Digest
 }
 
 var counterexampleKinds = map[string]struct{}{
@@ -37,17 +54,21 @@ func (p *parser) parseCounterexample(value strictjson.Value) (counterexampleDefi
 	if err != nil {
 		return counterexampleDefinition{}, err
 	}
-	if err := p.parseTrace(fields["trace"]); err != nil {
+	trace, err := p.parseTrace(fields["trace"])
+	if err != nil {
 		return counterexampleDefinition{}, err
 	}
 	worlds, err := p.parseWorlds(fields["worlds"])
 	if err != nil {
 		return counterexampleDefinition{}, err
 	}
-	if err := p.parseObserved(fields["observed"]); err != nil {
+	observed, err := p.parseObserved(fields["observed"])
+	if err != nil {
 		return counterexampleDefinition{}, err
 	}
-	return counterexampleDefinition{kind: kind, preconditions: preconditions, worlds: worlds}, nil
+	return counterexampleDefinition{
+		kind: kind, preconditions: preconditions, trace: trace, worlds: worlds, observed: observed,
+	}, nil
 }
 
 func parseMinimality(value strictjson.Value) error {
@@ -61,57 +82,61 @@ func parseMinimality(value strictjson.Value) error {
 	return requireText(fields["order"], "axiom-witness-order-v0.1", rejection.UnknownTag, "unsupported counterexample reduction order")
 }
 
-func (p *parser) parseTrace(value strictjson.Value) error {
+func (p *parser) parseTrace(value strictjson.Value) ([]counterexampleTraceStep, error) {
 	steps, err := array(value)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(steps) == 0 {
-		return rejection.New(rejection.InvalidJSON, "Axiom Evidence counterexample trace must not be empty")
+		return nil, rejection.New(rejection.InvalidJSON, "Axiom Evidence counterexample trace must not be empty")
 	}
+	result := make([]counterexampleTraceStep, 0, len(steps))
 	for _, step := range steps {
 		tagValue, err := member(step, "kind")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		tag, err := text(tagValue)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		switch tag {
 		case "document":
 			fields, err := object(step, "kind", "ref")
 			if err != nil {
-				return err
+				return nil, err
 			}
 			document, err := digest(fields["ref"])
 			if err != nil {
-				return err
+				return nil, err
 			}
 			p.documentRefs[document] = struct{}{}
+			result = append(result, counterexampleTraceStep{kind: tag, ref: document})
 		case "obligation":
 			fields, err := object(step, "kind", "ref")
 			if err != nil {
-				return err
+				return nil, err
 			}
 			obligation, err := digest(fields["ref"])
 			if err != nil {
-				return err
+				return nil, err
 			}
 			p.obligationRefs[obligation] = struct{}{}
+			result = append(result, counterexampleTraceStep{kind: tag, ref: obligation})
 		case "observation":
 			fields, err := object(step, "kind", "value")
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if err := requireText(fields["value"], "failed", rejection.UnknownTag, "unsupported counterexample observation"); err != nil {
-				return err
+				return nil, err
 			}
+			result = append(result, counterexampleTraceStep{kind: tag, value: "failed"})
 		default:
-			return rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence counterexample trace step")
+			return nil, rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence counterexample trace step")
 		}
 	}
-	return nil
+	return result, nil
 }
 
 func (p *parser) parseWorlds(value strictjson.Value) ([]axiomir.ConcreteWorld, error) {
@@ -261,45 +286,51 @@ func parseWitnessValue(value strictjson.Value) (axiomir.ConcreteValue, error) {
 	}
 }
 
-func (p *parser) parseObserved(value strictjson.Value) error {
+func (p *parser) parseObserved(value strictjson.Value) (counterexampleObserved, error) {
 	tagValue, err := member(value, "kind")
 	if err != nil {
-		return err
+		return counterexampleObserved{}, err
 	}
 	tag, err := text(tagValue)
 	if err != nil {
-		return err
+		return counterexampleObserved{}, err
 	}
 	switch tag {
 	case "obligation-failure":
 		fields, err := object(value, "kind", "obligation", "required_fields", "required_keys")
 		if err != nil {
-			return err
+			return counterexampleObserved{}, err
 		}
 		obligation, err := digest(fields["obligation"])
 		if err != nil {
-			return err
+			return counterexampleObserved{}, err
 		}
 		p.obligationRefs[obligation] = struct{}{}
-		if _, err := parseStringSet(fields["required_fields"], false, nil, "counterexample required fields are unsorted or duplicate"); err != nil {
-			return err
+		requiredFields, err := parseStringSet(fields["required_fields"], false, nil, "counterexample required fields are unsorted or duplicate")
+		if err != nil {
+			return counterexampleObserved{}, err
 		}
-		_, err = parseStringSet(fields["required_keys"], false, nil, "counterexample required keys are unsorted or duplicate")
-		return err
+		requiredKeys, err := parseStringSet(fields["required_keys"], false, nil, "counterexample required keys are unsorted or duplicate")
+		return counterexampleObserved{
+			kind: tag, obligation: obligation, requiredFields: requiredFields, requiredKeys: requiredKeys,
+		}, err
 	case "host-output-mismatch":
 		fields, err := object(value, "actual", "expected", "kind")
 		if err != nil {
-			return err
+			return counterexampleObserved{}, err
 		}
-		for _, name := range []string{"actual", "expected"} {
-			artifact, err := digest(fields[name])
-			if err != nil {
-				return err
-			}
-			p.artifactRefs[artifact] = struct{}{}
+		actual, err := digest(fields["actual"])
+		if err != nil {
+			return counterexampleObserved{}, err
 		}
-		return nil
+		expected, err := digest(fields["expected"])
+		if err != nil {
+			return counterexampleObserved{}, err
+		}
+		p.artifactRefs[actual] = struct{}{}
+		p.artifactRefs[expected] = struct{}{}
+		return counterexampleObserved{kind: tag, actual: actual, expected: expected}, nil
 	default:
-		return rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence counterexample observation kind")
+		return counterexampleObserved{}, rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence counterexample observation kind")
 	}
 }

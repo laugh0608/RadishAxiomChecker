@@ -26,9 +26,10 @@ type evaluationValue struct {
 	some       bool
 }
 
-type inputEvaluator struct {
+type concreteEvaluator struct {
 	document Document
-	world    ConcreteWorld
+	input    ConcreteWorld
+	output   ConcreteWorld
 	steps    uint64
 	maxSteps uint64
 }
@@ -38,7 +39,7 @@ type inputEvaluator struct {
 // De Bruijn bound records, fields, Bool connectives, exact equality, Int <=,
 // if, forall_rows, primary-key lookup, and match_option.
 func (document Document) EvaluateAssumes(world ConcreteWorld, maxSteps uint64) (AssumeEvaluation, error) {
-	evaluator := inputEvaluator{document: document, world: world, maxSteps: maxSteps}
+	evaluator := concreteEvaluator{document: document, input: world, maxSteps: maxSteps}
 	result := AssumeEvaluation{AllTrue: true}
 	for _, id := range document.assumeContracts {
 		contract, exists := document.contracts[id]
@@ -64,7 +65,7 @@ func (document Document) EvaluateAssumes(world ConcreteWorld, maxSteps uint64) (
 	return result, nil
 }
 
-func (evaluator *inputEvaluator) evaluate(
+func (evaluator *concreteEvaluator) evaluate(
 	value strictjson.Value,
 	environment []evaluationValue,
 ) (evaluationValue, error) {
@@ -93,7 +94,10 @@ func (evaluator *inputEvaluator) evaluate(
 			return evaluationValue{}, err
 		}
 		integer, err := canonicalInteger(fields["value"], false)
-		return evaluationValue{kind: intValue, integer: integer}, err
+		if err != nil {
+			return evaluationValue{}, err
+		}
+		return evaluator.checkedInteger(integer, fields["type"])
 	case "literal_text":
 		fields, err := object(value, "op", "value")
 		if err != nil {
@@ -206,6 +210,44 @@ func (evaluator *inputEvaluator) evaluate(
 			return evaluationValue{}, rejection.New(rejection.ConcreteCheckMismatch, "le evaluation requires concrete Int operands")
 		}
 		return evaluationValue{kind: boolValue, truth: left.integer.Cmp(right.integer) <= 0}, nil
+	case "int_add":
+		fields, err := object(value, "op", "result_type", "values")
+		if err != nil {
+			return evaluationValue{}, err
+		}
+		values, err := array(fields["values"])
+		if err != nil || len(values) != 2 {
+			return evaluationValue{}, concreteIntError(err, "int_add evaluation requires exactly two Int operands")
+		}
+		left, err := evaluator.evaluate(values[0], environment)
+		if err != nil {
+			return evaluationValue{}, err
+		}
+		right, err := evaluator.evaluate(values[1], environment)
+		if err != nil {
+			return evaluationValue{}, err
+		}
+		if left.kind != intValue || right.kind != intValue || left.integer == nil || right.integer == nil {
+			return evaluationValue{}, concreteIntError(nil, "int_add evaluation requires Int operands")
+		}
+		return evaluator.checkedInteger(new(big.Int).Add(left.integer, right.integer), fields["result_type"])
+	case "int_sub":
+		fields, err := object(value, "left", "op", "result_type", "right")
+		if err != nil {
+			return evaluationValue{}, err
+		}
+		left, err := evaluator.evaluate(fields["left"], environment)
+		if err != nil {
+			return evaluationValue{}, err
+		}
+		right, err := evaluator.evaluate(fields["right"], environment)
+		if err != nil {
+			return evaluationValue{}, err
+		}
+		if left.kind != intValue || right.kind != intValue || left.integer == nil || right.integer == nil {
+			return evaluationValue{}, concreteIntError(nil, "int_sub evaluation requires Int operands")
+		}
+		return evaluator.checkedInteger(new(big.Int).Sub(left.integer, right.integer), fields["result_type"])
 	case "if":
 		fields, err := object(value, "condition", "else", "op", "result_type", "then")
 		if err != nil {
@@ -224,7 +266,7 @@ func (evaluator *inputEvaluator) evaluate(
 		if err != nil {
 			return evaluationValue{}, err
 		}
-		table, _, err := evaluator.inputTable(fields["table"])
+		table, _, err := evaluator.resolveTable(fields["table"])
 		if err != nil {
 			return evaluationValue{}, err
 		}
@@ -249,7 +291,7 @@ func (evaluator *inputEvaluator) evaluate(
 		if err != nil {
 			return evaluationValue{}, err
 		}
-		table, definition, err := evaluator.inputTable(fields["table"])
+		table, definition, err := evaluator.resolveTable(fields["table"])
 		if err != nil {
 			return evaluationValue{}, err
 		}
@@ -314,45 +356,138 @@ func (evaluator *inputEvaluator) evaluate(
 		return evaluator.evaluate(fields["some"], prependEvaluation(
 			evaluationValue{kind: recordValue, record: subject.record}, environment,
 		))
+	case "count_where":
+		fields, err := object(value, "op", "predicate", "result_type", "table")
+		if err != nil {
+			return evaluationValue{}, err
+		}
+		table, _, err := evaluator.resolveTable(fields["table"])
+		if err != nil {
+			return evaluationValue{}, err
+		}
+		count := new(big.Int)
+		for rowIndex := range table.Rows {
+			if err := evaluator.step(); err != nil {
+				return evaluationValue{}, err
+			}
+			predicate, err := evaluator.evaluate(fields["predicate"], prependEvaluation(
+				evaluationValue{kind: recordValue, record: &table.Rows[rowIndex]}, environment,
+			))
+			if err != nil || predicate.kind != boolValue {
+				return evaluationValue{}, concreteBoolError(err, "count_where predicate evaluation requires Bool")
+			}
+			if predicate.truth {
+				count.Add(count, big.NewInt(1))
+			}
+		}
+		return evaluator.checkedInteger(count, fields["result_type"])
+	case "sum_where":
+		fields, err := object(value, "op", "predicate", "result_type", "table", "value")
+		if err != nil {
+			return evaluationValue{}, err
+		}
+		table, _, err := evaluator.resolveTable(fields["table"])
+		if err != nil {
+			return evaluationValue{}, err
+		}
+		sum := new(big.Int)
+		for rowIndex := range table.Rows {
+			if err := evaluator.step(); err != nil {
+				return evaluationValue{}, err
+			}
+			rowEnvironment := prependEvaluation(
+				evaluationValue{kind: recordValue, record: &table.Rows[rowIndex]}, environment,
+			)
+			predicate, err := evaluator.evaluate(fields["predicate"], rowEnvironment)
+			if err != nil || predicate.kind != boolValue {
+				return evaluationValue{}, concreteBoolError(err, "sum_where predicate evaluation requires Bool")
+			}
+			if !predicate.truth {
+				continue
+			}
+			term, err := evaluator.evaluate(fields["value"], rowEnvironment)
+			if err != nil {
+				return evaluationValue{}, err
+			}
+			if term.kind != intValue || term.integer == nil {
+				return evaluationValue{}, concreteIntError(nil, "sum_where value evaluation requires Int")
+			}
+			sum.Add(sum, term.integer)
+		}
+		return evaluator.checkedInteger(sum, fields["result_type"])
 	default:
-		return evaluationValue{}, rejection.New(rejection.ConcreteCheckMismatch, "assume expression op is outside the locked concrete evaluator")
+		return evaluationValue{}, rejection.New(rejection.ConcreteCheckMismatch, "expression op is outside the locked concrete evaluator")
 	}
 }
 
-func (evaluator *inputEvaluator) inputTable(value strictjson.Value) (*ConcreteTable, tableDefinition, error) {
+func (evaluator *concreteEvaluator) resolveTable(value strictjson.Value) (*ConcreteTable, tableDefinition, error) {
 	fields, err := object(value, "kind", "name")
 	if err != nil {
 		return nil, tableDefinition{}, err
 	}
-	if err := requireText(fields["kind"], "input", rejection.ConcreteCheckMismatch, "assume table reference must select input"); err != nil {
+	kind, err := text(fields["kind"])
+	if err != nil {
 		return nil, tableDefinition{}, err
 	}
 	interfaceName, err := name(fields["name"])
 	if err != nil {
 		return nil, tableDefinition{}, err
 	}
-	tableID, exists := evaluator.document.inputTables[interfaceName]
+	interfaces := evaluator.document.inputTables
+	world := &evaluator.input
+	if kind == "output" {
+		interfaces = evaluator.document.outputTables
+		world = &evaluator.output
+	} else if kind != "input" {
+		return nil, tableDefinition{}, rejection.New(rejection.ConcreteCheckMismatch, "concrete table reference has an unknown direction")
+	}
+	tableID, exists := interfaces[interfaceName]
 	if !exists {
-		return nil, tableDefinition{}, rejection.New(rejection.ConcreteCheckMismatch, "assume input interface is unavailable")
+		return nil, tableDefinition{}, rejection.New(rejection.ConcreteCheckMismatch, "concrete table interface is unavailable")
 	}
 	definition, exists := evaluator.document.tables[tableID]
 	if !exists {
-		return nil, tableDefinition{}, rejection.New(rejection.ConcreteCheckMismatch, "assume input table definition is unavailable")
+		return nil, tableDefinition{}, rejection.New(rejection.ConcreteCheckMismatch, "concrete table definition is unavailable")
 	}
-	for index := range evaluator.world.Tables {
-		if evaluator.world.Tables[index].Name == interfaceName {
-			return &evaluator.world.Tables[index], definition, nil
+	for index := range world.Tables {
+		if world.Tables[index].Name == interfaceName {
+			return &world.Tables[index], definition, nil
 		}
 	}
-	return nil, tableDefinition{}, rejection.New(rejection.ConcreteCheckMismatch, "concrete input omits an assume table")
+	return nil, tableDefinition{}, rejection.New(rejection.ConcreteCheckMismatch, "concrete world omits a referenced table")
 }
 
-func (evaluator *inputEvaluator) step() error {
+func (evaluator *concreteEvaluator) step() error {
 	if evaluator.steps >= evaluator.maxSteps {
-		return rejection.New(rejection.ResourceLimit, "concrete assume evaluation exceeds its semantic step limit")
+		return rejection.New(rejection.ResourceLimit, "concrete evaluation exceeds its semantic step limit")
 	}
 	evaluator.steps++
 	return nil
+}
+
+func (evaluator *concreteEvaluator) checkedInteger(
+	integer *big.Int,
+	typeValue strictjson.Value,
+) (evaluationValue, error) {
+	fields, err := object(typeValue, "kind", "lower", "upper")
+	if err != nil {
+		return evaluationValue{}, err
+	}
+	if err := requireText(fields["kind"], "int", rejection.ConcreteCheckMismatch, "runtime integer result type must be Int"); err != nil {
+		return evaluationValue{}, err
+	}
+	lower, err := canonicalInteger(fields["lower"], false)
+	if err != nil {
+		return evaluationValue{}, err
+	}
+	upper, err := canonicalInteger(fields["upper"], false)
+	if err != nil {
+		return evaluationValue{}, err
+	}
+	if integer.Cmp(lower) < 0 || integer.Cmp(upper) > 0 {
+		return evaluationValue{}, &ExecutionFailure{Kind: "numeric-range", Detail: "concrete integer result is outside its declared range"}
+	}
+	return evaluationValue{kind: intValue, integer: new(big.Int).Set(integer)}, nil
 }
 
 func concreteRecordField(record ConcreteRecord, name string) (ConcreteValue, bool) {
@@ -412,6 +547,13 @@ func prependEvaluation(value evaluationValue, environment []evaluationValue) []e
 }
 
 func concreteBoolError(err error, detail string) error {
+	if err != nil {
+		return err
+	}
+	return rejection.New(rejection.ConcreteCheckMismatch, detail)
+}
+
+func concreteIntError(err error, detail string) error {
 	if err != nil {
 		return err
 	}

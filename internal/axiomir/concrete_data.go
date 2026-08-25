@@ -462,3 +462,24 @@ func cloneContractDefinitions(source map[protocol.Digest]contractDefinition) map
 	}
 	return result
 }
+
+func cloneNodeDefinitions(source map[protocol.Digest]nodeDefinition) map[protocol.Digest]nodeDefinition {
+	result := make(map[protocol.Digest]nodeDefinition, len(source))
+	for id, definition := range source {
+		definition.predecessors = append([]protocol.Digest(nil), definition.predecessors...)
+		definition.expressions = append([]nodeExpressionCheck(nil), definition.expressions...)
+		definition.joinPairs = append([]joinPair(nil), definition.joinPairs...)
+		definition.groupKeys = append([]groupKey(nil), definition.groupKeys...)
+		definition.aggregates = append([]groupAggregate(nil), definition.aggregates...)
+		result[id] = definition
+	}
+	return result
+}
+
+func cloneDigestMap(source map[string]protocol.Digest) map[string]protocol.Digest {
+	result := make(map[string]protocol.Digest, len(source))
+	for name, id := range source {
+		result[name] = id
+	}
+	return result
+}

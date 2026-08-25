@@ -2,7 +2,7 @@
 
 本文冻结独立 checker 对锁定 keyed-finite-table Evidence profile 的第一段 concrete-data 语义检查。输入必须先通过 bundle、Axiom IR、Axiom Evidence 结构 / 身份、obligation completeness 与 state / support；生产 replay execution 的 `completed`、counterexample 中缓存的观察和预期 checker result 都不是本切片的真相源。
 
-后续完整输入制品与 assume / `Pre` 检查已经在 [concrete input / Pre 切片](axiom-evidence-concrete-inputs-v0.1.md) 实现；本文的停止线仍用于界定 `VerifyCounterexampleWorlds` 自身，不因后续能力增加而被改写。
+后续完整输入制品与 assume / `Pre` 检查已经在 [concrete input / Pre 切片](axiom-evidence-concrete-inputs-v0.1.md) 实现，proof-failure 目标解释见 [counterexample target replay 切片](axiom-evidence-counterexample-targets-v0.1.md)；本文的停止线仍用于界定 `VerifyCounterexampleWorlds` 自身，不因后续能力增加而被改写。
 
 ## 独立保留模型
 

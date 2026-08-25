@@ -1,6 +1,7 @@
 // Package axiomir implements the independent checker's strict Axiom IR v0.1
-// structure and locked obligation-reconstruction model. It does not discharge
-// obligations, inspect Evidence states, or aggregate an independent result.
+// structure, locked obligation-reconstruction model, and finite concrete
+// interpreter. It does not prove obligations, inspect proof support, compare a
+// production host, or aggregate an independent result.
 package axiomir
 
 import (
@@ -32,9 +33,12 @@ type Document struct {
 	enums             map[protocol.Digest]enumDefinition
 	records           map[protocol.Digest]recordDefinition
 	tables            map[protocol.Digest]tableDefinition
+	nodes             map[protocol.Digest]nodeDefinition
+	nodeOrder         []protocol.Digest
 	contracts         map[protocol.Digest]contractDefinition
 	inputTables       map[string]protocol.Digest
 	outputTables      map[string]protocol.Digest
+	outputNodes       map[string]protocol.Digest
 	assumeContracts   []protocol.Digest
 }
 
@@ -94,8 +98,8 @@ func (document Document) OutputInterfaces() []string {
 }
 
 // AssumeContractIDs returns the canonical IR assume-contract set. It exposes
-// identities only; concrete truth is checked by a later expression-replay
-// slice.
+// identities only; concrete truth is checked by the separate concrete replay
+// entry points.
 func (document Document) AssumeContractIDs() []protocol.Digest {
 	return append([]protocol.Digest(nil), document.assumeContracts...)
 }

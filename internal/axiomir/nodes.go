@@ -34,6 +34,7 @@ func (p *parser) parseNodeDefinition(value strictjson.Value, id protocol.Digest)
 			return err
 		}
 		definition.tableType = tableType
+		definition.port = port
 		p.inputPorts[port] = id
 	case "filter":
 		fields, err := object(value, "kind", "predicate", "source", "table_type")

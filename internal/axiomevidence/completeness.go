@@ -275,7 +275,16 @@ func cloneCounterexample(source *counterexampleDefinition) *counterexampleDefini
 	result := &counterexampleDefinition{
 		kind:          source.kind,
 		preconditions: append([]protocol.Digest(nil), source.preconditions...),
+		trace:         append([]counterexampleTraceStep(nil), source.trace...),
 		worlds:        make([]axiomir.ConcreteWorld, len(source.worlds)),
+		observed: counterexampleObserved{
+			kind:           source.observed.kind,
+			obligation:     source.observed.obligation,
+			requiredFields: append([]string(nil), source.observed.requiredFields...),
+			requiredKeys:   append([]string(nil), source.observed.requiredKeys...),
+			actual:         source.observed.actual,
+			expected:       source.observed.expected,
+		},
 	}
 	for worldIndex, world := range source.worlds {
 		result.worlds[worldIndex].Tables = make([]axiomir.ConcreteTable, len(world.Tables))
