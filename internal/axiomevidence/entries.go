@@ -68,7 +68,8 @@ func (p *parser) parseTools(value strictjson.Value) (int, error) {
 			return err
 		}
 		p.artifactRefs[artifact] = struct{}{}
-		if _, err := nonemptyText(fields["name"]); err != nil {
+		name, err := nonemptyText(fields["name"])
+		if err != nil {
 			return err
 		}
 		roles, err := parseStringSet(fields["roles"], true, toolRoles, "Axiom Evidence tool roles are empty, unknown, unsorted, or duplicate")
@@ -86,7 +87,12 @@ func (p *parser) parseTools(value strictjson.Value) (int, error) {
 		for _, role := range roles {
 			roleSet[role] = struct{}{}
 		}
-		p.tools[id] = toolDefinition{roles: roleSet}
+		p.tools[id] = toolDefinition{
+			artifact: artifact,
+			name:     name,
+			roles:    roleSet,
+			version:  version,
+		}
 		return nil
 	})
 }

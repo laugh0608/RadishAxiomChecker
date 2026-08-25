@@ -43,6 +43,13 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 	checkedComparisons := 0
 	failedComparisons := 0
 	replayedMismatches := 0
+	proofComplete := 0
+	proofClaims := 0
+	proofVerified := 0
+	proofAttestations := 0
+	proofUnsupported := 0
+	proofPolicySatisfied := 0
+	proofMissingMaterial := 0
 	uniqueEvidence := make(map[protocol.Digest]struct{})
 	uniqueIR := make(map[protocol.Digest]struct{})
 	uniqueInputs := make(map[protocol.Digest]struct{})
@@ -137,6 +144,21 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 				for _, artifact := range outputCheck.Artifacts {
 					uniqueOutputs[artifact] = struct{}{}
 				}
+				proofCheck, err := document.InspectProofSupports(
+					verified.Request.AssurancePolicy,
+					verified.ReadArtifact,
+					concreteLimitsFrom(verified.Request),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				proofComplete++
+				proofClaims += proofCheck.Claims
+				proofVerified += proofCheck.IndependentlyVerified
+				proofAttestations += proofCheck.AttestationsConfirmed
+				proofUnsupported += proofCheck.UnsupportedClaims
+				proofPolicySatisfied += proofCheck.ProofPolicySatisfied
+				proofMissingMaterial += proofCheck.MissingProofMaterial
 			}
 			if document.Counts.Artifacts == 0 || document.Counts.Executions == 0 ||
 				document.Counts.Obligations == 0 || document.Counts.Tools == 0 {
@@ -182,6 +204,21 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 	}
 	if len(uniqueOutputs) != 8 {
 		t.Fatalf("expected eight unique concrete output artifacts, got %d", len(uniqueOutputs))
+	}
+	if proofComplete != 24 || proofClaims != 213 {
+		t.Fatalf("expected 24 proof audits and 213 proved claims, got %d and %d", proofComplete, proofClaims)
+	}
+	if proofVerified != 0 || proofAttestations != 65 || proofUnsupported != 148 {
+		t.Fatalf(
+			"unexpected proof capability classification: verified=%d attestations=%d unsupported=%d",
+			proofVerified, proofAttestations, proofUnsupported,
+		)
+	}
+	if proofPolicySatisfied != 53 || proofMissingMaterial != 160 {
+		t.Fatalf(
+			"unexpected proof policy boundary: satisfied=%d missing=%d",
+			proofPolicySatisfied, proofMissingMaterial,
+		)
 	}
 	if failedComparisons != 1 || replayedMismatches != 3 {
 		t.Fatalf(

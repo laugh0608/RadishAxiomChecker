@@ -47,10 +47,16 @@ func (p *parser) parseTrust(value strictjson.Value) (int, error) {
 		if len(mitigations) != 0 {
 			return rejection.New(rejection.UnknownTag, "locked Axiom Evidence profile does not contain mitigation variants")
 		}
-		if err := p.parseScope(fields["scope"]); err != nil {
+		scope, err := p.parseScope(fields["scope"])
+		if err != nil {
 			return err
 		}
-		p.trust[id] = trustDefinition{category: category}
+		p.trust[id] = trustDefinition{
+			category:      category,
+			scopeKind:     scope.kind,
+			scopeTool:     scope.tool,
+			scopeDocument: scope.document,
+		}
 		return nil
 	})
 }
@@ -67,7 +73,7 @@ func (p *parser) parseUncovered(value strictjson.Value) (int, error) {
 		if _, err := nonemptyText(fields["statement"]); err != nil {
 			return err
 		}
-		if err := p.parseScope(fields["scope"]); err != nil {
+		if _, err := p.parseScope(fields["scope"]); err != nil {
 			return err
 		}
 		p.uncovered[id] = struct{}{}
@@ -75,39 +81,45 @@ func (p *parser) parseUncovered(value strictjson.Value) (int, error) {
 	})
 }
 
-func (p *parser) parseScope(value strictjson.Value) error {
+type trustScope struct {
+	kind     string
+	tool     protocol.Digest
+	document protocol.Digest
+}
+
+func (p *parser) parseScope(value strictjson.Value) (trustScope, error) {
 	tagValue, err := member(value, "kind")
 	if err != nil {
-		return err
+		return trustScope{}, err
 	}
 	tag, err := text(tagValue)
 	if err != nil {
-		return err
+		return trustScope{}, err
 	}
 	switch tag {
 	case "program":
 		fields, err := object(value, "ir_document_digest", "kind")
 		if err != nil {
-			return err
+			return trustScope{}, err
 		}
 		document, err := digest(fields["ir_document_digest"])
 		if err != nil {
-			return err
+			return trustScope{}, err
 		}
 		p.documentRefs[document] = struct{}{}
-		return nil
+		return trustScope{kind: tag, document: document}, nil
 	case "tool":
 		fields, err := object(value, "id", "kind")
 		if err != nil {
-			return err
+			return trustScope{}, err
 		}
 		tool, err := digest(fields["id"])
 		if err != nil {
-			return err
+			return trustScope{}, err
 		}
 		p.toolRefs[tool] = struct{}{}
-		return nil
+		return trustScope{kind: tag, tool: tool}, nil
 	default:
-		return rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence scope kind")
+		return trustScope{}, rejection.New(rejection.UnknownTag, "unsupported Axiom Evidence scope kind")
 	}
 }

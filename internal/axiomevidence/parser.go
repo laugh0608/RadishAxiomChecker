@@ -15,7 +15,10 @@ type artifactDefinition struct {
 }
 
 type toolDefinition struct {
-	roles map[string]struct{}
+	artifact protocol.Digest
+	name     string
+	roles    map[string]struct{}
+	version  string
 }
 
 type executionIO struct {
@@ -58,7 +61,10 @@ type obligationResult struct {
 }
 
 type trustDefinition struct {
-	category string
+	category      string
+	scopeKind     string
+	scopeTool     protocol.Digest
+	scopeDocument protocol.Digest
 }
 
 type parser struct {
