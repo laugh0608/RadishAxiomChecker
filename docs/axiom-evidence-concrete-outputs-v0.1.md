@@ -2,6 +2,8 @@
 
 本文冻结独立 checker 对锁定 keyed-finite-table host / golden output 的重建、IR 独立执行与动态关系核对。调用方必须先通过 bundle、Axiom IR、Axiom Evidence 结构 / 身份、obligation completeness、state / support、counterexample world / `WF`、concrete input / `Pre` 和 proof-failure target replay；生产 target、host execution 的 `completed`、output comparator、Evidence result 与预期独立结果都不是本切片的真相源。
 
+后续已经增加 [proof support 真值与能力边界](axiom-evidence-proof-support-v0.1.md)；本文的输出比较成功只界定 `VerifyConcreteOutputs` 自身，不能用来跳过 `InspectProofSupports` 或升级任何 `proved`。
+
 ## Artifact、envelope 与 execution role
 
 `VerifyConcreteOutputs` 只通过调用方提供的受约束 artifact reader 重开 Evidence 已声明的 `axiom-benchmark-data` `0.1`，并再次核对 raw SHA-256。decoder 与 concrete input 共用同一严格 JSON、benchmark ID、scalar、record 和 table 路径，不复制 output codec。
@@ -47,6 +49,6 @@ input / output JSON 继续消费 artifact byte、depth、item 与 parser step；
 
 负例覆盖 output format / role、execute / compare I/O、checked host 对调、checked golden 替换、failed actual / expected、trace、subject、witness、checked / failed 混用、raw digest、logical memory 与 semantic step；24 个前置完整场景全部进入入口，unknown 没有被升级。
 
-本切片不执行生产 Node target，不检查 counterexample minimality，不验证 kernel rule、backend attestation 或 certificate，不重算 conclusion，不形成 remaining trust / missing artifact，也不生成 checker binary、`checker.artifact`、CLI 或独立四态 result。
+本切片不执行生产 Node target，不检查 counterexample minimality，不验证 kernel rule、backend attestation 或 certificate，不重算 conclusion，不形成 remaining trust / missing artifact，也不生成 checker binary、`checker.artifact`、CLI 或独立四态 result。调用方仍须继续执行 proof support 审计并显式消费其能力与材料分类。
 
 `VerifyConcreteOutputs` 成功只确认锁定具体 input / output artifact 与当前有限 IR 的动态关系；它不能升级任何 `proved`，不能证明其他输入上的实现等价，也不能形成 `accepted` 或六平台结论。

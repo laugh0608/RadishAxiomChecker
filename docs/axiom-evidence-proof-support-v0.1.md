@@ -57,7 +57,7 @@ response 只接受一个精确 status frame：`unsat\n`、`sat\n` 或 `unknown\n
 - 其中 53 项满足 `attestation-allowed` proof-support 子策略；`CHK-PROOF-01` 的 12 项在 `certificate-required` 下明确缺少 proof material；
 - 合计 160 项 `MissingProofMaterial`，不会因 execution `completed` 或 status 文本而消失。
 
-合成负例覆盖 obligation-set format / IR subject 漂移、query logic / status-command 漂移、response status 漂移、attestation trust scope 错绑、artifact digest 漂移、缺失 reader、逻辑内存和 semantic-step 限制；另以 wrong 场景确认 `sat` response 下的 kernel claim 仍保持材料不足。相同输入重复 100 次产生相同排序与分类。
+合成负例覆盖 obligation-set format / IR subject 漂移、query logic / status-command 漂移、response status 漂移、attestation trust scope 错绑、`proved` execution 绑定漂移、artifact digest 漂移、缺失 reader、逻辑内存和 semantic-step 限制；另以 wrong 场景确认 `sat` response 下的 kernel claim 仍保持材料不足。相同输入重复 100 次产生相同排序与分类。
 
 ## 资源与停止线
 
