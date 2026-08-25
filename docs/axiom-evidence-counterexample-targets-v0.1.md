@@ -39,7 +39,7 @@ Evidence parser 继续严格解析原有格式，但不再丢弃已经验证过�
 | `AX-B04 wrong-sensitive-filter` | `noninterference` | 两个公开等价输入产生不同输出行集合 |
 | `AX-B04 wrong-sensitive-priority` | `noninterference` | 两个公开等价输入产生不同公开输出值 |
 
-这里共有 8 个 `prove + failed` target。四个 invalid-input 场景包含 9 个 artifact / interface `input-conformance` failed entry，仍由 `VerifyConcreteInputs` 的同一真实输入分类；`CHK-CONCRETE-01` 的 3 个 host / output failed entry 明确延后到 output comparison 切片。三类集合不能用场景数、world 数或 result entry 数互相替代。
+这里共有 8 个 `prove + failed` target。四个 invalid-input 场景包含 9 个 artifact / interface `input-conformance` failed entry，仍由 `VerifyConcreteInputs` 的同一真实输入分类；`CHK-CONCRETE-01` 的 3 个 host / output failed entry 由后续 [concrete output comparison](axiom-evidence-concrete-outputs-v0.1.md) 独立重放。三类集合不能用场景数、world 数或 result entry 数互相替代。
 
 ## 公开等价与输出差异
 
@@ -49,8 +49,8 @@ Evidence parser 继续严格解析原有格式，但不再丢弃已经验证过�
 
 解释器按 expression、node、row、join scan 与 aggregate term 消费 `semantic-steps`；input world 与 retained node table 使用确定性 logical-byte 上界并受 `working-memory` 限制。当前仍不是 Go heap 精确计量，`wall-clock`、跨阶段累计预算、内部 `incomplete` result 和外层进程限制尚未形成。
 
-导入的 24 个前置完整场景全部进入该入口：8 个 proof failure 被独立确认，3 个 host / output comparison 被显式延后，其余没有本切片目标。正向执行覆盖四题全部 checked input artifact；负例覆盖 node / predecessor 绑定、projection、join 非唯一、group aggregate、数值范围、trace、observed、required key、paired public input、目标未违反、semantic step 与 logical memory。
+导入的 24 个前置完整场景全部进入该入口：8 个 proof failure 被独立确认，3 个 host / output entry 被显式交给独立 output comparison 入口，其余没有本方法目标。正向执行覆盖四题全部 checked input artifact；负例覆盖 node / predecessor 绑定、projection、join 非唯一、group aggregate、数值范围、trace、observed、required key、paired public input、目标未违反、semantic step 与 logical memory。
 
-本切片不解析或比较 host / golden output，不检查 counterexample minimality，不验证 kernel rule、backend attestation 或 certificate，不重算 conclusion，不形成 remaining trust / missing artifact，也不生成 checker binary、`checker.artifact`、CLI 或独立四态 result。
+`VerifyCounterexampleTargets` 本身不解析或比较 host / golden output；调用方必须继续进入上述 concrete output comparison。该方法不检查 counterexample minimality，不验证 kernel rule、backend attestation 或 certificate，不重算 conclusion，不形成 remaining trust / missing artifact，也不生成 checker binary、`checker.artifact`、CLI 或独立四态 result。
 
 `VerifyCounterexampleTargets` 成功只确认锁定有限 world 确实反驳对应 proof target；动态重放不能升级为 `proved`，不能说明生产输出正确，也不能形成 `accepted` 或六平台结论。

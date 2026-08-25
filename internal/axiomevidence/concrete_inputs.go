@@ -9,13 +9,17 @@ import (
 	"radishaxiom.dev/independent-checker-go/internal/strictjson"
 )
 
-// ConcreteInputLimits binds JSON parsing, deterministic logical-memory
-// accounting, and assume evaluation to explicit checker request budgets.
-type ConcreteInputLimits struct {
+// ConcreteDataLimits binds JSON parsing, deterministic logical-memory
+// accounting, assume evaluation, and finite IR execution to explicit checker
+// request budgets.
+type ConcreteDataLimits struct {
 	JSON             strictjson.Limits
 	MaxLogicalBytes  uint64
 	MaxSemanticSteps uint64
 }
+
+type ConcreteInputLimits = ConcreteDataLimits
+type ConcreteOutputLimits = ConcreteDataLimits
 
 // ConcreteInputCheck identifies the concrete input artifacts independently
 // classified during this verification call.

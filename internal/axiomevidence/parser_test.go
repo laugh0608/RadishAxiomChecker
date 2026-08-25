@@ -38,9 +38,15 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 	targetComplete := 0
 	replayedProofs := 0
 	deferredComparisons := 0
+	outputComplete := 0
+	hostExecutions := 0
+	checkedComparisons := 0
+	failedComparisons := 0
+	replayedMismatches := 0
 	uniqueEvidence := make(map[protocol.Digest]struct{})
 	uniqueIR := make(map[protocol.Digest]struct{})
 	uniqueInputs := make(map[protocol.Digest]struct{})
+	uniqueOutputs := make(map[protocol.Digest]struct{})
 	for _, entry := range entries {
 		name := entry.Name()
 		t.Run(name, func(t *testing.T) {
@@ -117,6 +123,20 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 				targetComplete++
 				replayedProofs += targetCheck.ReplayedProofs
 				deferredComparisons += targetCheck.DeferredComparisons
+				outputCheck, err := document.VerifyConcreteOutputs(
+					irDocument, verified.ReadArtifact, concreteLimitsFrom(verified.Request),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				outputComplete++
+				hostExecutions += outputCheck.HostExecutions
+				checkedComparisons += outputCheck.CheckedComparisons
+				failedComparisons += outputCheck.FailedComparisons
+				replayedMismatches += outputCheck.ReplayedMismatches
+				for _, artifact := range outputCheck.Artifacts {
+					uniqueOutputs[artifact] = struct{}{}
+				}
 			}
 			if document.Counts.Artifacts == 0 || document.Counts.Executions == 0 ||
 				document.Counts.Obligations == 0 || document.Counts.Tools == 0 {
@@ -156,6 +176,24 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 	}
 	if deferredComparisons != 3 {
 		t.Fatalf("expected three deferred host/output comparisons, got %d", deferredComparisons)
+	}
+	if outputComplete != 24 {
+		t.Fatalf("expected 24 concrete-output-complete Evidence scenarios, got %d", outputComplete)
+	}
+	if len(uniqueOutputs) != 8 {
+		t.Fatalf("expected eight unique concrete output artifacts, got %d", len(uniqueOutputs))
+	}
+	if failedComparisons != 1 || replayedMismatches != 3 {
+		t.Fatalf(
+			"expected one failed comparison and three replayed mismatch obligations, got %d and %d",
+			failedComparisons, replayedMismatches,
+		)
+	}
+	if hostExecutions != 9 || checkedComparisons != 7 {
+		t.Fatalf(
+			"expected nine host executions and seven checked comparisons, got %d and %d",
+			hostExecutions, checkedComparisons,
+		)
 	}
 	if len(uniqueEvidence) != 25 {
 		t.Fatalf("expected 25 unique identity-valid Evidence documents, got %d", len(uniqueEvidence))

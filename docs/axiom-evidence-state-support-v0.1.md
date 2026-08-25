@@ -2,7 +2,7 @@
 
 本文冻结独立 checker 对锁定 keyed-finite-table Evidence profile 的五态、execution、tool role、attempt、trust、support 与有限 artifact 闭合关系。输入必须先通过 bundle、Axiom IR、Axiom Evidence 结构 / 身份和 obligation completeness；生产 conclusion、pipeline receipt 中的成功标记和预期独立结果都不是本切片的真相源。
 
-后续已经增加 [counterexample world / WF](axiom-evidence-counterexample-worlds-v0.1.md) 与 [concrete input / Pre](axiom-evidence-concrete-inputs-v0.1.md) 检查；本文的“不重放”只界定 `VerifyStateSupport` 自身，不能用来跳过这些后续入口。非输入目标违反和 host / golden output 真值仍未实现。
+后续已经增加 [counterexample world / WF](axiom-evidence-counterexample-worlds-v0.1.md)、[concrete input / Pre](axiom-evidence-concrete-inputs-v0.1.md)、[proof-failure target replay](axiom-evidence-counterexample-targets-v0.1.md) 与 [concrete output comparison](axiom-evidence-concrete-outputs-v0.1.md)；本文的“不重放”只界定 `VerifyStateSupport` 自身，不能用来跳过这些后续入口。
 
 ## 保留模型与固定顺序
 
@@ -61,7 +61,7 @@ Evidence parser 不再在结构检查后丢弃结果关系，而是保留：
 
 artifact subject 必须出现在 result artifacts。缺失、多余或未知 artifact 都拒绝。
 
-`failed` 必须绑定完成的 replay 或 comparison：prove 义务与 input conformance 使用 `replay-counterexample`，host / output conformance 使用 `compare-output`。本切片只检查 execution 类别、完成状态与显式 host / actual / golden artifact 边界；counterexample world / `WF` 与 input-conformance 真值由上述后续入口另行检查，非输入目标违反和具体输出差异真值仍留给后续 replay。
+`failed` 必须绑定完成的 replay 或 comparison：prove 义务与 input conformance 使用 `replay-counterexample`，host / output conformance 使用 `compare-output`。本切片只检查 execution 类别、完成状态与显式 host / actual / golden artifact 边界；counterexample world / `WF`、input-conformance、proof target 与具体输出差异真值由上述后续入口另行检查。
 
 ## 场景与负例
 
@@ -72,6 +72,6 @@ artifact subject 必须出现在 result artifacts。缺失、多余或未知 art
 
 ## 停止线
 
-`VerifyStateSupport` 本身不验证 kernel rule、certificate 或 backend attestation 真值，不解释 obligation-set / query 定理，不重放 counterexample、输入、host 或 golden output，不判断 witness 最小性，不重算 conclusion，不应用 assurance policy，也不生成 remaining trust、missing artifact、checker binary、`checker.artifact`、CLI 或独立四态 result。调用方仍须按顺序进入已经实现的 world / `WF` 与 concrete input / `Pre` 检查。
+`VerifyStateSupport` 本身不验证 kernel rule、certificate 或 backend attestation 真值，不解释 obligation-set / query 定理，不重放 counterexample、输入、host 或 golden output，不判断 witness 最小性，不重算 conclusion，不应用 assurance policy，也不生成 remaining trust、missing artifact、checker binary、`checker.artifact`、CLI 或独立四态 result。调用方仍须按顺序进入已经实现的 world / `WF`、concrete input / `Pre`、target replay 与 output comparison 检查。
 
 `VerifyStateSupport` 成功只表示锁定 Evidence 的状态与引用关系闭合，不能升级为 `checked`、`proved`、`accepted` 或六平台结论。

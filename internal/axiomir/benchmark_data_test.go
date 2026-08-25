@@ -125,6 +125,76 @@ func TestEvaluateAssumesEnforcesSemanticStepLimit(t *testing.T) {
 	assertCode(t, err, rejection.ResourceLimit)
 }
 
+func TestDecodeBenchmarkOutputMatchesIndependentExecution(t *testing.T) {
+	document, err := axiomir.ParseStructure(lockedB01(t), fixtureLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := document.DecodeBenchmarkInput(validB01BenchmarkInput(), fixtureLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution, err := document.Execute(input.World, axiomir.ExecutionLimits{
+		MaxLogicalBytes:  1 << 20,
+		MaxSemanticSteps: 10_000,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := document.DecodeBenchmarkOutput(validB01BenchmarkOutput(), fixtureLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	check := document.CheckCompleteOutputWorld(output.World)
+	if !check.Anchored || !check.WellFormed || len(check.Violations) != 0 {
+		t.Fatalf("valid complete benchmark output rejected: %+v", check)
+	}
+	if !axiomir.ConcreteWorldsEqual(execution.Outputs, output.World) {
+		t.Fatal("decoded output differs from independent execution")
+	}
+
+	driftedBytes := bytes.Replace(validB01BenchmarkOutput(), []byte(`"net_cents":"100"`), []byte(`"net_cents":"101"`), 1)
+	drifted, err := document.DecodeBenchmarkOutput(driftedBytes, fixtureLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if axiomir.ConcreteWorldsEqual(execution.Outputs, drifted.World) {
+		t.Fatal("concrete world equality ignored a scalar difference")
+	}
+}
+
+func TestDecodeBenchmarkOutputRejectsDirectionAndWFDrift(t *testing.T) {
+	document, err := axiomir.ParseStructure(lockedB01(t), fixtureLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongRole := bytes.Replace(
+		validB01BenchmarkOutput(),
+		[]byte(`"role":"golden-output"`),
+		[]byte(`"role":"output"`),
+		1,
+	)
+	_, err = document.DecodeBenchmarkOutput(wrongRole, fixtureLimits())
+	assertCode(t, err, rejection.UnknownTag)
+
+	missing, err := document.DecodeBenchmarkOutput([]byte(`{"benchmark_id":"AX-B01","data_version":"0.1","format":"axiom-benchmark-data","role":"golden-output","tables":[]}`), fixtureLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.CheckCompleteOutputWorld(missing.World).WellFormed {
+		t.Fatal("missing output interface was classified WF")
+	}
+
+	outOfRangeBytes := bytes.Replace(validB01BenchmarkOutput(), []byte(`"net_cents":"100"`), []byte(`"net_cents":"1000001"`), 1)
+	outOfRange, err := document.DecodeBenchmarkOutput(outOfRangeBytes, fixtureLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.CheckCompleteOutputWorld(outOfRange.World).WellFormed {
+		t.Fatal("out-of-range output was classified WF")
+	}
+}
+
 func validB01BenchmarkInput() []byte {
 	return []byte(`{
   "role" : "input",
@@ -140,6 +210,24 @@ func validB01BenchmarkInput() []byte {
     }
   ],
   "data_version": "0.1"
+}
+`)
+}
+
+func validB01BenchmarkOutput() []byte {
+	return []byte(`{
+  "benchmark_id":"AX-B01",
+  "data_version":"0.1",
+  "format":"axiom-benchmark-data",
+  "role":"golden-output",
+  "tables":[
+    {
+      "name":"net_orders",
+      "rows":[
+        {"net_cents":"100","order_id":"O1"}
+      ]
+    }
+  ]
 }
 `)
 }

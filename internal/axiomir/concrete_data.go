@@ -62,19 +62,33 @@ func (document Document) CheckInputWorld(world ConcreteWorld) WorldCheck {
 // CheckCompleteInputWorld requires the world to contain exactly the complete
 // input interface set in addition to satisfying declaration-level WF.
 func (document Document) CheckCompleteInputWorld(world ConcreteWorld) WorldCheck {
-	check := document.checkWorld(world, document.inputTables)
+	return document.checkCompleteWorld(world, document.inputTables, "input")
+}
+
+// CheckCompleteOutputWorld requires exactly the complete output interface set
+// and applies the same declaration-level WF checks as interpreted outputs.
+func (document Document) CheckCompleteOutputWorld(world ConcreteWorld) WorldCheck {
+	return document.checkCompleteWorld(world, document.outputTables, "output")
+}
+
+func (document Document) checkCompleteWorld(
+	world ConcreteWorld,
+	interfaces map[string]protocol.Digest,
+	direction string,
+) WorldCheck {
+	check := document.checkWorld(world, interfaces)
 	seen := make(map[string]struct{}, len(world.Tables))
 	for _, table := range world.Tables {
 		seen[table.Name] = struct{}{}
 	}
-	if len(seen) != len(document.inputTables) {
+	if len(seen) != len(interfaces) {
 		check.Anchored = false
-		check.Violations = append(check.Violations, "concrete input does not contain the complete IR input interface set")
+		check.Violations = append(check.Violations, "concrete world does not contain the complete IR "+direction+" interface set")
 	} else {
-		for name := range document.inputTables {
+		for name := range interfaces {
 			if _, exists := seen[name]; !exists {
 				check.Anchored = false
-				check.Violations = append(check.Violations, "concrete input is missing a declared IR input interface")
+				check.Violations = append(check.Violations, "concrete world is missing a declared IR "+direction+" interface")
 			}
 		}
 	}
@@ -82,9 +96,36 @@ func (document Document) CheckCompleteInputWorld(world ConcreteWorld) WorldCheck
 }
 
 // CheckOutputWorld applies the same declaration-level check to named outputs.
-// It is retained for the following concrete-artifact slice.
 func (document Document) CheckOutputWorld(world ConcreteWorld) WorldCheck {
 	return document.checkWorld(world, document.outputTables)
+}
+
+// ConcreteWorldsEqual compares already decoded worlds without discarding
+// interface, record, field, scalar-kind, enum-identity, or canonical ordering.
+func ConcreteWorldsEqual(left, right ConcreteWorld) bool {
+	if len(left.Tables) != len(right.Tables) {
+		return false
+	}
+	for tableIndex := range left.Tables {
+		leftTable := left.Tables[tableIndex]
+		rightTable := right.Tables[tableIndex]
+		if leftTable.Name != rightTable.Name || len(leftTable.Rows) != len(rightTable.Rows) {
+			return false
+		}
+		for rowIndex := range leftTable.Rows {
+			leftRow := leftTable.Rows[rowIndex]
+			rightRow := rightTable.Rows[rowIndex]
+			if leftRow.RecordType != rightRow.RecordType || len(leftRow.Fields) != len(rightRow.Fields) {
+				return false
+			}
+			for fieldIndex := range leftRow.Fields {
+				if leftRow.Fields[fieldIndex] != rightRow.Fields[fieldIndex] {
+					return false
+				}
+			}
+		}
+	}
+	return true
 }
 
 func (document Document) checkWorld(world ConcreteWorld, interfaces map[string]protocol.Digest) WorldCheck {
