@@ -38,12 +38,12 @@ benchmark profile 另外生成：
 - 每个唯一 `golden-output` artifact 的 `output-conformance`；
 - 出现 golden-output boundary 时，每个 IR output interface 的 `output-conformance`。
 
-这些 role 只用于确定“必须存在何种 definition”的显式边界。本切片本身不判断 role 是否配给正确 execution kind、tool role、result、support 或 artifact format；调用方必须继续执行 [state / support](axiom-evidence-state-support-v0.1.md)、[counterexample world / WF](axiom-evidence-counterexample-worlds-v0.1.md)、[concrete input / Pre](axiom-evidence-concrete-inputs-v0.1.md)、[counterexample target replay](axiom-evidence-counterexample-targets-v0.1.md)、[concrete output comparison](axiom-evidence-concrete-outputs-v0.1.md) 和 [proof support 真值与能力边界](axiom-evidence-proof-support-v0.1.md) 分层入口，任一较早成功都不能冒充后续真值检查。
+这些 role 只用于确定“必须存在何种 definition”的显式边界。本切片本身不判断 role 是否配给正确 execution kind、tool role、result、support 或 artifact format；调用方必须继续执行 [state / support](axiom-evidence-state-support-v0.1.md)、[counterexample world / WF](axiom-evidence-counterexample-worlds-v0.1.md)、[concrete input / Pre](axiom-evidence-concrete-inputs-v0.1.md)、[counterexample target replay](axiom-evidence-counterexample-targets-v0.1.md)、[concrete output comparison](axiom-evidence-concrete-outputs-v0.1.md)、[proof support 真值与能力边界](axiom-evidence-proof-support-v0.1.md)、production conclusion 与 [Independent Check 内存结果聚合](independent-result-aggregation-v0.1.md) 分层入口，任一较早成功都不能冒充后续真值检查。
 
 ## 锁定场景与负例
 
-- 28 个 bundle 中，`chk-bundle-01`、`chk-digest-01`、`chk-resource-01` 继续在前置 bundle / identity / resource 层拒绝；
-- 其余 25 个身份有效 Evidence 中，24 个 definition / ID 集合精确匹配；
+- 28 个 bundle 中，`chk-digest-01`、`chk-resource-01` 继续在前置 digest / resource 层失败关闭，`chk-bundle-01` 保留缺失的非主体 proof artifact 并进入结果层；
+- 26 个身份有效 Evidence 中，25 个 definition / ID 集合精确匹配；
 - `chk-obligation-01` 保持结构和文档身份有效，但因缺少一个规范 `numeric-range` 义务而得到 `obligation-mismatch`；
 - 局部负例覆盖缺失、多余、expectation、path、anchor、同 anchor 冲突 expectation、非规范 obligation 顺序和重复遍历稳定性。
 

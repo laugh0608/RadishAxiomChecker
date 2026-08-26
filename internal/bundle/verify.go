@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"radishaxiom.dev/independent-checker-go/internal/protocol"
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
@@ -26,15 +27,18 @@ var requestEnvelopeLimits = strictjson.Limits{
 	MaxSteps: hardSemanticSteps,
 }
 
-// Verified is the identity-only result of the parser slice. It is not an
-// Axiom independent-check result and makes no Evidence semantic claim.
+// Verified is the identity-only result of the parser slice. Present blobs have
+// been authenticated; manifest-listed absent blobs remain explicit in
+// MissingArtifacts for later incomplete aggregation. It is not an Axiom
+// independent-check result and makes no Evidence semantic claim.
 type Verified struct {
-	Request        protocol.Request
-	Manifest       protocol.Manifest
-	RequestDigest  protocol.Digest
-	ManifestDigest protocol.Digest
-	root           string
-	artifactLimit  uint64
+	Request          protocol.Request
+	Manifest         protocol.Manifest
+	RequestDigest    protocol.Digest
+	ManifestDigest   protocol.Digest
+	MissingArtifacts []protocol.Digest
+	root             string
+	artifactLimit    uint64
 }
 
 // Verify parses and verifies a read-only bundle without mutating it.
@@ -79,16 +83,18 @@ func Verify(root string) (Verified, error) {
 	if err := verifyEvidenceBinding(request, manifest); err != nil {
 		return Verified{}, err
 	}
-	if err := verifyBlobs(root, manifest, artifactLimit, bundleLimit); err != nil {
+	missingArtifacts, err := verifyBlobs(root, manifest, artifactLimit, bundleLimit)
+	if err != nil {
 		return Verified{}, err
 	}
 	return Verified{
-		Request:        request,
-		Manifest:       manifest,
-		RequestDigest:  requestDigest,
-		ManifestDigest: manifestDigest,
-		root:           absoluteRoot,
-		artifactLimit:  artifactLimit,
+		Request:          request,
+		Manifest:         manifest,
+		RequestDigest:    requestDigest,
+		ManifestDigest:   manifestDigest,
+		MissingArtifacts: missingArtifacts,
+		root:             absoluteRoot,
+		artifactLimit:    artifactLimit,
 	}, nil
 }
 
@@ -224,11 +230,11 @@ func verifyBlobs(
 	manifest protocol.Manifest,
 	artifactLimit uint64,
 	bundleLimit uint64,
-) error {
+) ([]protocol.Digest, error) {
 	dir := filepath.Join(root, "blobs", "sha256")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return rejection.New(rejection.ArtifactMissing, "blob directory cannot be enumerated")
+		return nil, rejection.New(rejection.ArtifactMissing, "blob directory cannot be enumerated")
 	}
 	expected := make(map[string]protocol.Artifact, len(manifest.Artifacts))
 	for _, artifact := range manifest.Artifacts {
@@ -239,48 +245,53 @@ func verifyBlobs(
 	for _, entry := range entries {
 		name := entry.Name()
 		if !validBlobName(name) {
-			return rejection.New(rejection.IsolationBoundaryViolation, "blob name is not a full lowercase SHA-256 digest")
+			return nil, rejection.New(rejection.IsolationBoundaryViolation, "blob name is not a full lowercase SHA-256 digest")
 		}
 		artifact, listed := expected[name]
 		if !listed {
-			return rejection.New(rejection.ManifestCoverage, "blob is not listed by the manifest")
+			return nil, rejection.New(rejection.ManifestCoverage, "blob is not listed by the manifest")
 		}
 		path := filepath.Join(dir, name)
 		info, err := os.Lstat(path)
 		if err != nil {
-			return rejection.New(rejection.ArtifactMissing, "listed blob is unavailable")
+			return nil, rejection.New(rejection.ArtifactMissing, "listed blob is unavailable")
 		}
 		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-			return rejection.New(rejection.IsolationBoundaryViolation, "blob must be an ordinary non-symlink file")
+			return nil, rejection.New(rejection.IsolationBoundaryViolation, "blob must be an ordinary non-symlink file")
 		}
 		if info.Size() < 0 || uint64(info.Size()) != artifact.ByteLength {
-			return rejection.New(rejection.LengthMismatch, "blob length differs from the manifest")
+			return nil, rejection.New(rejection.LengthMismatch, "blob length differs from the manifest")
 		}
 		if artifact.ByteLength > artifactLimit {
-			return rejection.New(rejection.ResourceLimit, "blob exceeds artifact byte limit")
+			return nil, rejection.New(rejection.ResourceLimit, "blob exceeds artifact byte limit")
 		}
 		nextTotal, ok := addChecked(total, artifact.ByteLength)
 		if !ok || nextTotal > bundleLimit {
-			return rejection.New(rejection.ResourceLimit, "bundle exceeds bundle byte limit")
+			return nil, rejection.New(rejection.ResourceLimit, "bundle exceeds bundle byte limit")
 		}
 		total = nextTotal
 		observed[name] = struct{}{}
 	}
-	for name := range expected {
+	missing := make([]protocol.Digest, 0)
+	for name, artifact := range expected {
 		if _, ok := observed[name]; !ok {
-			return rejection.New(rejection.ArtifactMissing, "manifest-listed blob is missing")
+			missing = append(missing, artifact.ContentDigest)
 		}
 	}
+	sort.Slice(missing, func(i, j int) bool { return missing[i].String() < missing[j].String() })
 	for _, artifact := range manifest.Artifacts {
+		if _, ok := observed[artifact.ContentDigest.BlobName()]; !ok {
+			continue
+		}
 		actual, err := digestRegular(filepath.Join(dir, artifact.ContentDigest.BlobName()), artifact.ByteLength)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if actual != artifact.ContentDigest {
-			return rejection.New(rejection.DigestMismatch, "blob SHA-256 differs from the manifest")
+			return nil, rejection.New(rejection.DigestMismatch, "blob SHA-256 differs from the manifest")
 		}
 	}
-	return nil
+	return missing, nil
 }
 
 func digestRegular(path string, declared uint64) (protocol.Digest, error) {

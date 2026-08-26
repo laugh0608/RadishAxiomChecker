@@ -26,6 +26,9 @@ func TestVerifyImportedBundle(t *testing.T) {
 	if len(verified.Manifest.Artifacts) != 1 {
 		t.Fatalf("unexpected artifact count: %d", len(verified.Manifest.Artifacts))
 	}
+	if len(verified.MissingArtifacts) != 0 {
+		t.Fatalf("valid bundle reported missing artifacts: %v", verified.MissingArtifacts)
+	}
 	data, err := verified.ReadArtifact(verified.Manifest.Artifacts[0].ContentDigest)
 	if err != nil {
 		t.Fatal(err)
@@ -59,20 +62,26 @@ func TestVerifyImportedTwentyEightBundleBoundary(t *testing.T) {
 		t.Fatalf("expected 28 imported scenarios, got %d", len(entries))
 	}
 	rejections := map[string]rejection.Code{
-		"chk-bundle-01":   rejection.ArtifactMissing,
 		"chk-digest-01":   rejection.DigestMismatch,
 		"chk-resource-01": rejection.ResourceLimit,
 	}
 	for _, entry := range entries {
 		name := entry.Name()
 		t.Run(name, func(t *testing.T) {
-			_, err := Verify(filepath.Join(root, name, "bundle"))
+			verified, err := Verify(filepath.Join(root, name, "bundle"))
 			if want, rejected := rejections[name]; rejected {
 				assertBundleCode(t, err, want)
 				return
 			}
 			if err != nil {
 				t.Fatal(err)
+			}
+			if name == "chk-bundle-01" {
+				if len(verified.MissingArtifacts) != 1 {
+					t.Fatalf("expected one missing artifact, got %v", verified.MissingArtifacts)
+				}
+			} else if len(verified.MissingArtifacts) != 0 {
+				t.Fatalf("unexpected missing artifacts: %v", verified.MissingArtifacts)
 			}
 		})
 	}
@@ -180,7 +189,7 @@ func TestVerifyRejectsBundleBoundaryViolations(t *testing.T) {
 					t.Fatal(err)
 				}
 			},
-			rejection.ArtifactMissing,
+			"",
 		},
 		{
 			"wrong blob length",
@@ -209,7 +218,16 @@ func TestVerifyRejectsBundleBoundaryViolations(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			root := validBundle(t)
 			test.mutate(t, root)
-			_, err := Verify(root)
+			verified, err := Verify(root)
+			if test.code == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(verified.MissingArtifacts) != 1 || verified.MissingArtifacts[0].BlobName() != blobName {
+					t.Fatalf("missing blob identity was not retained: %v", verified.MissingArtifacts)
+				}
+				return
+			}
 			assertBundleCode(t, err, test.code)
 		})
 	}

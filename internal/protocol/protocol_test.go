@@ -26,6 +26,9 @@ func TestParseImportedRequestAndManifest(t *testing.T) {
 	if request.Version != "0.1" || request.CheckerProfile.Version != "0.1" {
 		t.Fatalf("unexpected request identity: %#v", request)
 	}
+	if request.DomainDigest.String() != "sha256:2763823df8835c17dd3c3bdc19bbc70c3045cddc0edca9689b0af8d06e85f1ca" {
+		t.Fatalf("unexpected request document domain digest: %s", request.DomainDigest)
+	}
 	if got, _ := request.Limit("bundle-bytes"); got != 4<<20 {
 		t.Fatalf("unexpected bundle limit: %d", got)
 	}

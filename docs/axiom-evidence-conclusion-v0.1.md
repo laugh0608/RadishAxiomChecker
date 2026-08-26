@@ -36,7 +36,7 @@ Evidence parser 继续先按公共格式要求拒绝悬空、歧义、重复或�
 
 production `satisfied` 只说明 producer 的 obligation 五态满足 Evidence v0.1 聚合规则，不表示独立 proof 已成立、remaining trust 为空或真实意图得到证明。`VerifyConclusion` 不读取 `ProofSupportCheck` 来改写 production kind，也不会删除其中的 `MissingProofMaterial` / `RemainingTrust`。
 
-锁定 24 个前置完整场景中仍有 213 个 producer `proved` claim、0 个独立 proof、65 个 attestation 和 160 个 missing proof material；其中 producer conclusion 为 `satisfied` 的场景仍必须在后续独立结果中保留这些事实。四态独立结果只有下一切片才能综合 conclusion 自洽性、proof 能力、remaining trust、缺失 artifact 与 request assurance policy。
+锁定 24 个前置完整场景中仍有 213 个 producer `proved` claim、0 个独立 proof、65 个 attestation 和 160 个 missing proof material；其中 producer conclusion 为 `satisfied` 的场景仍必须在独立结果中保留这些事实。后续已经由 [Independent Check 内存结果聚合切片](independent-result-aggregation-v0.1.md) 综合 conclusion 自洽性、proof 能力、remaining trust、缺失 artifact 与 request assurance policy；该层仍不会让 production conclusion 决定独立结果。
 
 ## 锁定场景与负例
 
@@ -52,8 +52,8 @@ production `satisfied` 只说明 producer 的 obligation 五态满足 Evidence v
 
 ## 资源与停止线
 
-obligation 遍历、ref 构造与必需 execution 核对受 request `working-memory` 与 `semantic-steps` 预算约束；零预算或超限以 `resource-limit` 失败关闭。该计数只覆盖本方法，完整跨阶段累计资源、`wall-clock` 内部中断与四态 `incomplete` 形成仍属于后续切片。
+obligation 遍历、ref 构造与必需 execution 核对受 request `working-memory` 与 `semantic-steps` 预算约束；零预算或超限以 `resource-limit` 失败关闭。该计数只覆盖本方法，结果层现在可以把明确的局部资源错误物化为 `incomplete`，但完整跨阶段累计资源与 `wall-clock` 内部中断仍属于后续切片。
 
-本切片不检查 counterexample minimality，不执行 cvc5、Node.js、生产 compiler 或 adapter，不重放 kernel rule，不检查 certificate，不把 backend attestation 升级为独立 proof，不应用完整 assurance policy，不形成累计 remaining trust / missing artifact，不生成 checker binary、`checker.artifact`、CLI 或四态独立 result，也不修改 Axiom Evidence / Independent Check Contract 公共格式。
+本方法本身不检查 counterexample minimality，不执行 cvc5、Node.js、生产 compiler 或 adapter，不重放 kernel rule，不检查 certificate，不把 backend attestation 升级为独立 proof，也不修改 Axiom Evidence / Independent Check Contract 公共格式。完整 assurance policy、remaining trust / missing artifact 与四态由后续结果层显式消费；本方法仍不生成 checker binary、`checker.artifact`、CLI 或 canonical companion result。
 
 `VerifyConclusion` 成功只确认生产 Evidence 忠实表达其自身结论；一份正确报告 `violated`、`input_rejected` 或 `implementation_inconsistent` 的 Evidence 同样可以通过本层。调用方不得把该成功升级为 `accepted`、程序正确或六平台结论。

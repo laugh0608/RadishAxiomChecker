@@ -1,9 +1,13 @@
 package protocol
 
 import (
+	"crypto/sha256"
+
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
 	"radishaxiom.dev/independent-checker-go/internal/strictjson"
 )
+
+const requestDigestDomain = "axiom-independent-check-v0.1:request"
 
 var trustCategories = map[string]struct{}{
 	"cryptographic-primitive":    {},
@@ -81,10 +85,21 @@ func ParseRequest(data []byte, limits strictjson.Limits) (Request, error) {
 		AssurancePolicy: policy,
 		BundleManifest:  manifestDigest,
 		CheckerProfile:  profile,
+		DomainDigest:    requestDomainDigest(data),
 		Evidence:        evidenceDigest,
 		Limits:          requestLimits,
 		Version:         version,
 	}, nil
+}
+
+func requestDomainDigest(data []byte) Digest {
+	hash := sha256.New()
+	_, _ = hash.Write([]byte(requestDigestDomain))
+	_, _ = hash.Write([]byte{0})
+	_, _ = hash.Write(data)
+	var digest Digest
+	copy(digest[:], hash.Sum(nil))
+	return digest
 }
 
 func parseAssurancePolicy(value strictjson.Value) (AssurancePolicy, error) {

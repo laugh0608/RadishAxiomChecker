@@ -38,7 +38,6 @@ func TestParseLockedTwentyEightBundleIRBoundary(t *testing.T) {
 		t.Fatalf("expected 28 imported scenarios, got %d", len(entries))
 	}
 	rejections := map[string]rejection.Code{
-		"chk-bundle-01":   rejection.ArtifactMissing,
 		"chk-digest-01":   rejection.DigestMismatch,
 		"chk-resource-01": rejection.ResourceLimit,
 	}
@@ -55,6 +54,13 @@ func TestParseLockedTwentyEightBundleIRBoundary(t *testing.T) {
 			}
 			if err != nil {
 				t.Fatal(err)
+			}
+			if scenario == "chk-bundle-01" {
+				if len(verified.MissingArtifacts) != 1 {
+					t.Fatalf("expected one retained missing artifact, got %v", verified.MissingArtifacts)
+				}
+			} else if len(verified.MissingArtifacts) != 0 {
+				t.Fatalf("unexpected missing artifacts: %v", verified.MissingArtifacts)
 			}
 			artifact, ok := irArtifact(verified.Manifest)
 			if !ok {
@@ -86,8 +92,8 @@ func TestParseLockedTwentyEightBundleIRBoundary(t *testing.T) {
 			parsed++
 		})
 	}
-	if parsed != 25 {
-		t.Fatalf("expected 25 identity-valid IR scenarios, got %d", parsed)
+	if parsed != 26 {
+		t.Fatalf("expected 26 identity-valid IR scenarios, got %d", parsed)
 	}
 	if len(unique) != 12 {
 		t.Fatalf("expected 12 unique identity-valid IR documents, got %d", len(unique))

@@ -80,14 +80,14 @@ Axiom IR v0.1 规范中尚未被锁定语料使用的 `fixed`、`option`、`reco
 
 `ParseStructure` 的成功结果只包含 raw content digest、document domain digest 和顶层计数，不是 checker 四态结果。类型索引只在 parser 内用于良构核对；当前不检查算术或聚合范围义务、连接恰好一次、行覆盖、标签 / 控制依赖、守恒或非干扰语义；也不重建 obligation、不解释 Evidence、不消费 certificate、不执行 solver / Node、不累计全阶段 wall-clock / working-memory，不生成 binary、`checker.artifact`、result 或 CLI。
 
-任何调用方都不得把结构解析成功升级为 `checked` 或 `proved`。声明范围外的 tag 和结构失败关闭；声明范围外的语义没有默认成功路径，因为当前仓库尚无形成接受结果的入口。
+任何调用方都不得把结构解析成功升级为 `checked` 或 `proved`。声明范围外的 tag 和结构失败关闭；声明范围外的语义没有默认成功路径，只有后续全部检查与 assurance policy 进入结果聚合后才能形成独立接受结果。
 
 ## 锁定语料与负例
 
 28 个 bundle 的入口边界保持如下：
 
-- 25 个身份有效场景进入 IR parser；它们覆盖 12 份唯一 IR 原始字节；
-- `chk-bundle-01`、`chk-digest-01`、`chk-resource-01` 分别在缺失 artifact、raw content SHA-256、资源限制层拒绝，parser 不得越过这些失败；
+- 26 个身份有效场景进入 IR parser；它们覆盖 12 份唯一 IR 原始字节；
+- `chk-bundle-01` 保留缺失的非主体 proof artifact 并进入结果 `incomplete`；`chk-digest-01`、`chk-resource-01` 分别在 raw content SHA-256、资源限制前置层失败关闭，parser 不得越过这些失败；
 - 12 份唯一 IR 的 document domain digest 与锁定 bundle 中既有外部记录逐一比较，但不解释 Evidence 语义；
 - parser 负例覆盖未知 member / version / tag、语义数组非规范顺序、definition domain ID 漂移、悬空输出节点引用、document domain digest 不匹配，以及空 / 重复 enum、悬空 enum / record type、字段缺失 / 重复、未知标签、错误整数范围、空 / 重复 / 缺失 / sensitive primary key；
 - expression 负例均从合成 canonical definition 重算 domain ID，覆盖缺失字段、非 record field operand、错误 bound operand、Bool / `eq` / `le` / 算术 / 分支类型不一致、非 Bool filter / formula / table predicate、错误 `match_option` subject / branch、lookup key arity / type、非 Int sum value 及 node scope 表操作；

@@ -65,13 +65,13 @@ artifact subject 必须出现在 result artifacts。缺失、多余或未知 art
 
 ## 场景与负例
 
-- 28 个导入 bundle 中，3 个继续在 artifact / digest / resource 前置层拒绝，`chk-obligation-01` 继续在 obligation completeness 拒绝；
-- 其余 24 个场景逐项通过 state / support 闭合，覆盖 proved、checked、unknown、failed、trusted、kernel replay、backend attestation、timeout、unavailable、host execution、output comparison 与 counterexample replay；
+- 28 个导入 bundle 中，digest / resource 两个场景继续在前置层拒绝；`chk-bundle-01` 验证现存 blob 后保留缺失 artifact 并进入 `incomplete` 结果层，`chk-obligation-01` 继续在 obligation completeness 拒绝；
+- 其余 24 个完整链路场景逐项通过 state / support 闭合，覆盖 proved、checked、unknown、failed、trusted、kernel replay、backend attestation、timeout、unavailable、host execution、output comparison 与 counterexample replay；
 - 合成负例覆盖 expectation / state 误用、缺失 support、错误 tool role、未完成 prove execution、attempt reason 漂移、attestation trust 遗漏、response 漂移、checked artifact 闭包遗漏、trusted scope 漂移和 failed execution kind 漂移；
 - 同一有效文档重复验证 100 次保持相同成功结果。
 
 ## 停止线
 
-`VerifyStateSupport` 本身不验证 kernel rule、certificate 或 backend attestation 真值，不解释 obligation-set / query 定理，不重放 counterexample、输入、host 或 golden output，不判断 witness 最小性，不重算 conclusion，不应用 assurance policy，也不生成 remaining trust、missing artifact、checker binary、`checker.artifact`、CLI 或独立四态 result。调用方仍须按顺序进入已经实现的 world / `WF`、concrete input / `Pre`、target replay、output comparison、proof support 审计与 production conclusion 重算。
+`VerifyStateSupport` 本身不验证 kernel rule、certificate 或 backend attestation 真值，不解释 obligation-set / query 定理，不重放 counterexample、输入、host 或 golden output，不判断 witness 最小性，不重算 conclusion，不应用 assurance policy，也不生成 remaining trust、missing artifact、checker binary、`checker.artifact`、CLI 或独立四态 result。调用方仍须按顺序进入已经实现的 world / `WF`、concrete input / `Pre`、target replay、output comparison、proof support 审计、production conclusion 重算与 [Independent Check 内存结果聚合](independent-result-aggregation-v0.1.md)。
 
 `VerifyStateSupport` 成功只表示锁定 Evidence 的状态与引用关系闭合，不能升级为 `checked`、`proved`、`accepted` 或六平台结论。

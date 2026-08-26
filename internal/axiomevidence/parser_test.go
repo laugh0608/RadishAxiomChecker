@@ -25,7 +25,6 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 		t.Fatalf("expected 28 imported scenarios, got %d", len(entries))
 	}
 	rejections := map[string]rejection.Code{
-		"chk-bundle-01":   rejection.ArtifactMissing,
 		"chk-digest-01":   rejection.DigestMismatch,
 		"chk-resource-01": rejection.ResourceLimit,
 	}
@@ -96,6 +95,18 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 			}
 			if err := document.VerifyIRSubject(irDocument.ContentDigest, irDocument.DomainDigest); err != nil {
 				t.Fatal(err)
+			}
+			if name == "chk-bundle-01" {
+				if len(verified.MissingArtifacts) != 1 {
+					t.Fatalf("expected one retained missing artifact, got %v", verified.MissingArtifacts)
+				}
+				uniqueEvidence[document.ContentDigest] = struct{}{}
+				uniqueIR[irDocument.ContentDigest] = struct{}{}
+				parsed++
+				return
+			}
+			if len(verified.MissingArtifacts) != 0 {
+				t.Fatalf("unexpected missing artifacts: %v", verified.MissingArtifacts)
 			}
 			completenessErr := document.VerifyObligationCompleteness(irDocument)
 			if name == "chk-obligation-01" {
@@ -177,8 +188,8 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 			parsed++
 		})
 	}
-	if parsed != 25 {
-		t.Fatalf("expected 25 identity-valid Evidence scenarios, got %d", parsed)
+	if parsed != 26 {
+		t.Fatalf("expected 26 identity-valid Evidence scenarios, got %d", parsed)
 	}
 	if complete != 24 {
 		t.Fatalf("expected 24 obligation-complete Evidence scenarios, got %d", complete)

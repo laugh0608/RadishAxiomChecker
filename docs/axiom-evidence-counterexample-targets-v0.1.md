@@ -51,6 +51,6 @@ Evidence parser 继续严格解析原有格式，但不再丢弃已经验证过�
 
 导入的 24 个前置完整场景全部进入该入口：8 个 proof failure 被独立确认，3 个 host / output entry 被显式交给独立 output comparison 入口，其余没有本方法目标。正向执行覆盖四题全部 checked input artifact；负例覆盖 node / predecessor 绑定、projection、join 非唯一、group aggregate、数值范围、trace、observed、required key、paired public input、目标未违反、semantic step 与 logical memory。
 
-`VerifyCounterexampleTargets` 本身不解析或比较 host / golden output；调用方必须继续进入上述 concrete output comparison。该方法不检查 counterexample minimality，不验证 kernel rule、backend attestation 或 certificate，不重算 conclusion，不形成 remaining trust / missing artifact，也不生成 checker binary、`checker.artifact`、CLI 或独立四态 result。
+`VerifyCounterexampleTargets` 本身不解析或比较 host / golden output；调用方必须继续进入上述 concrete output comparison、proof support、production conclusion 与 [Independent Check 内存结果聚合](independent-result-aggregation-v0.1.md)。该方法不检查 counterexample minimality，不验证 kernel rule、backend attestation 或 certificate，不重算 conclusion，不形成 remaining trust / missing artifact，也不生成 checker binary、`checker.artifact`、CLI 或独立四态 result。
 
 `VerifyCounterexampleTargets` 成功只确认锁定有限 world 确实反驳对应 proof target；动态重放不能升级为 `proved`，不能说明生产输出正确，也不能形成 `accepted` 或六平台结论。

@@ -37,8 +37,8 @@ world projection 可以只保留见证实际提交的 input table，但提交的
 
 ## 场景与负例
 
-- 28 个导入 bundle 中，3 个继续在 artifact / digest / resource 前置层拒绝，`chk-obligation-01` 继续在 obligation completeness 拒绝；
-- 其余 24 个场景继续通过 state / support 和本 world / WF 边界；其中 20 个 failed counterexample 实例覆盖 `single-row`、`row-pair`、`missing-key`、`group` 与 `paired-input`；
+- 28 个导入 bundle 中，digest / resource 两个场景继续在前置层拒绝；`chk-bundle-01` 保留缺失 artifact 并进入 `incomplete` 结果层，`chk-obligation-01` 继续在 obligation completeness 拒绝；
+- 其余 24 个完整链路场景继续通过 state / support 和本 world / WF 边界；其中 20 个 failed counterexample 实例覆盖 `single-row`、`row-pair`、`missing-key`、`group` 与 `paired-input`；
 - 四个 invalid-input 场景分别保留 `Pre`、外键或重复主键失败，不被粗暴要求为 WF；
 - 合成负例覆盖 world cardinality、未知 interface、整数越界、未知 enum member、字段遗漏、record type 漂移、重复键、缺失 assume 集合和非 assume precondition；
 - 独立 Axiom IR 数据测试覆盖 `bool`、`int`、`text`、`enum`、容量、枚举主键顺序、重复键与范围；同一有效 world 重复验证 100 次结果稳定。

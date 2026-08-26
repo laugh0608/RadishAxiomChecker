@@ -6,7 +6,7 @@
 
 处理顺序固定为：
 
-1. bundle 层先核对 request / manifest、普通文件、声明长度、原始字节 SHA-256 与资源限制；失败时不得调用 Evidence parser；
+1. bundle 层先核对 request / manifest、所有现存 blob 的普通文件、声明长度、原始字节 SHA-256 与资源限制，并单独形成 manifest 已列出但缺失的 blob 清单；确定矛盾或 Evidence / IR 本体不可得时不得调用 Evidence parser，非主体 artifact 缺失可以进入后续 `incomplete` 结果层；
 2. `strictjson.ParseCanonical` 拒绝重复 member、非法 UTF-8、JSON number、`null`、BOM、空白、非规范转义和非 JCS member 顺序；
 3. Evidence 层拒绝未知顶层 / 嵌套 member、版本、tag、摘要算法、profile 和声明范围外的结构；
 4. 对 tool、execution、obligation、trust 与 uncovered 的每个 `definition` 重放 canonical bytes，并按对应 domain 加 `NUL` 后重算 SHA-256 ID；obligation 的 `result` 不进入 obligation ID；
@@ -82,7 +82,7 @@ map 只用于已知摘要查找，不参与规范输出、摘要或错误顺序�
 - `ParseStructure` 本身不审计 `proved` 支撑材料；调用方必须继续调用 `InspectProofSupports` 并消费其分类、剩余 trust 与缺失材料；
 - 检查 certificate、backend attestation 真值或 kernel rule；
 - `ParseStructure` 本身不重算 conclusion；调用方必须在前置语义检查与 proof support 审计结束后继续调用 `VerifyConclusion`；
-- 应用完整 assurance policy、形成累计 remaining trust / missing artifact 或独立四态 result；
+- `ParseStructure` 本身不应用完整 assurance policy、形成累计 remaining trust / missing artifact 或独立四态 result；调用方必须进入 [Independent Check 内存结果聚合](independent-result-aggregation-v0.1.md)；
 - 执行 solver、Node、生产工具或网络 resolver，也不生成 binary、`checker.artifact` 或 CLI。
 
 任何调用方都不得把结构解析成功升级为 `checked`、`proved`、`accepted` 或六平台结论。
@@ -91,13 +91,13 @@ map 只用于已知摘要查找，不参与规范输出、摘要或错误顺序�
 
 28 个 bundle 的入口边界保持如下：
 
-- 25 个身份有效场景进入 Evidence parser；它们覆盖 25 份唯一 Evidence 和 12 份唯一 IR，其中 24 个通过后续 obligation completeness，`chk-obligation-01` 在该后续边界拒绝；
+- 26 个身份有效场景进入 Evidence parser；它们覆盖 25 份唯一 Evidence 和 12 份唯一 IR，其中 `chk-bundle-01` 明确保留一个缺失的非主体 proof artifact 并进入后续 `incomplete` 结果层；其余场景中 24 个通过后续 obligation completeness，`chk-obligation-01` 在该后续边界拒绝；
 - 24 个 obligation-complete 场景继续通过后续 state / support 闭合；bundle generator 已为 `replay-counterexample` fixture tool 补齐规范 `counterexample-replayer` role，并增加 kind / role 生成门禁；
 - 同一 24 个场景继续通过 counterexample world / WF 边界；核心及 host/output 失败见证必须由 IR 声明确认 WF，四个 input-conformance 负例允许保持已锚定的范围、`Pre` 或键失败；
 - 同一 24 个场景继续通过 concrete input / `Pre` 边界，覆盖 12 个唯一 `host-input`；四个 invalid-input 分别由真实 `Pre` 或重复键失败支撑；
 - 同一 24 个场景继续通过 proof-failure target replay、concrete output comparison、proof support 审计与 production conclusion 重算；后两层分别保留独立证明数 0、160 项缺失 proof material，并得到 7 / 4 / 8 / 4 / 1 的 conclusion 分布，不能由结构成功升级；
-- `chk-bundle-01`、`chk-digest-01`、`chk-resource-01` 分别在缺失 artifact、raw content SHA-256、资源限制层拒绝，Evidence parser 不得越过这些失败；
-- 25 份 Evidence 的 raw content digest 与 manifest 一致，document domain digest 与版本化 bundle-set / expected result 一致，subject 双摘要与独立 Axiom IR parser 一致；
+- `chk-bundle-01` 的缺失 artifact 形成 identity `incomplete`；`chk-digest-01` 与 `chk-resource-01` 仍分别在 raw content SHA-256 与资源限制前置层失败关闭，Evidence parser 不得越过确定摘要矛盾或未完成解析；
+- 26 个进入 parser 的场景中，25 份唯一 Evidence 的 raw content digest 与 manifest 一致，document domain digest 与版本化 bundle-set / expected result 一致，subject 双摘要与独立 Axiom IR parser 一致；
 - parser 负例覆盖未知 member / version / support tag、非规范 artifact / ref 顺序、definition domain ID 漂移、悬空 producer、重复 conclusion ref、错误 subject artifact，以及 Evidence document / IR subject 外部绑定不匹配；
 - 既有 request / manifest、bundle、Axiom IR、严格 JSON / JCS 与源码身份负例保持独立通过。
 

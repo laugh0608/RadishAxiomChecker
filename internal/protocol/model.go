@@ -20,6 +20,7 @@ type Request struct {
 	AssurancePolicy AssurancePolicy
 	BundleManifest  Digest
 	CheckerProfile  CheckerProfile
+	DomainDigest    Digest
 	Evidence        Digest
 	Limits          []Limit
 	Version         string

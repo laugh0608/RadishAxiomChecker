@@ -1,10 +1,33 @@
 package axiomevidence
 
 import (
+	"sort"
+
 	"radishaxiom.dev/independent-checker-go/internal/protocol"
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
 	"radishaxiom.dev/independent-checker-go/internal/strictjson"
 )
+
+// TrustFinding is one producer-declared trust boundary retained by the strict
+// Evidence parser. Result aggregation decides separately whether the request
+// permits the category; parsing a trust entry never means it was discharged.
+type TrustFinding struct {
+	ID       protocol.Digest
+	Category string
+}
+
+// TrustInventory returns every Evidence trust entry in stable ID order. The
+// current checker profile conservatively retains all entries: replayed parsing,
+// semantics, and concrete worlds do not by themselves erase a producer-declared
+// trust boundary.
+func (d Document) TrustInventory() []TrustFinding {
+	result := make([]TrustFinding, 0, len(d.trust))
+	for id, definition := range d.trust {
+		result = append(result, TrustFinding{ID: id, Category: definition.category})
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].ID.String() < result[j].ID.String() })
+	return result
+}
 
 var trustCategories = map[string]struct{}{
 	"cryptographic-primitive":    {},
