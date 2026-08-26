@@ -10,6 +10,8 @@ type Code string
 
 const (
 	ArtifactMissing            Code = "artifact-missing"
+	CheckIDMismatch            Code = "check-id-mismatch"
+	CheckerIdentity            Code = "checker-identity"
 	ConcreteCheckMismatch      Code = "concrete-check-mismatch"
 	ConclusionMismatch         Code = "conclusion-mismatch"
 	CounterexampleInvalid      Code = "counterexample-invalid"
@@ -30,7 +32,9 @@ const (
 	NoncanonicalOrder          Code = "noncanonical-order"
 	ObligationMismatch         Code = "obligation-mismatch"
 	RequestBindingMismatch     Code = "request-binding-mismatch"
+	ResultAggregation          Code = "result-aggregation"
 	ResourceLimit              Code = "resource-limit"
+	TCBIncomplete              Code = "tcb-incomplete"
 	UnknownMember              Code = "unknown-member"
 	UnknownTag                 Code = "unknown-tag"
 	UnsupportedVersion         Code = "unsupported-version"
