@@ -49,6 +49,6 @@ input / output JSON 继续消费 artifact byte、depth、item 与 parser step；
 
 负例覆盖 output format / role、execute / compare I/O、checked host 对调、checked golden 替换、failed actual / expected、trace、subject、witness、checked / failed 混用、raw digest、logical memory 与 semantic step；24 个前置完整场景全部进入入口，unknown 没有被升级。
 
-本切片不执行生产 Node target，不检查 counterexample minimality，不验证 kernel rule、backend attestation 或 certificate，不重算 conclusion，不形成 remaining trust / missing artifact，也不生成 checker binary、`checker.artifact`、CLI 或独立四态 result。调用方仍须继续执行 proof support 审计并显式消费其能力与材料分类。
+本切片不执行生产 Node target，不检查 counterexample minimality，不验证 kernel rule、backend attestation 或 certificate，不重算 conclusion，不形成 remaining trust / missing artifact，也不生成 checker binary、`checker.artifact`、CLI 或独立四态 result。调用方仍须继续执行 proof support 审计并显式消费其能力与材料分类，随后进入 production conclusion 确定性重算。
 
 `VerifyConcreteOutputs` 成功只确认锁定具体 input / output artifact 与当前有限 IR 的动态关系；它不能升级任何 `proved`，不能证明其他输入上的实现等价，也不能形成 `accepted` 或六平台结论。

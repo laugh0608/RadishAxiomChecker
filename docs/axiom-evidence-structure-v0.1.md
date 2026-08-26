@@ -81,7 +81,8 @@ map 只用于已知摘要查找，不参与规范输出、摘要或错误顺序�
 - `ParseStructure` 本身不执行有限 IR 或比较输出；调用方必须继续调用 `VerifyCounterexampleTargets` 与 `VerifyConcreteOutputs`；
 - `ParseStructure` 本身不审计 `proved` 支撑材料；调用方必须继续调用 `InspectProofSupports` 并消费其分类、剩余 trust 与缺失材料；
 - 检查 certificate、backend attestation 真值或 kernel rule；
-- 重算 conclusion、应用 assurance policy、形成 remaining trust / missing artifact 或独立四态 result；
+- `ParseStructure` 本身不重算 conclusion；调用方必须在前置语义检查与 proof support 审计结束后继续调用 `VerifyConclusion`；
+- 应用完整 assurance policy、形成累计 remaining trust / missing artifact 或独立四态 result；
 - 执行 solver、Node、生产工具或网络 resolver，也不生成 binary、`checker.artifact` 或 CLI。
 
 任何调用方都不得把结构解析成功升级为 `checked`、`proved`、`accepted` 或六平台结论。
@@ -94,7 +95,7 @@ map 只用于已知摘要查找，不参与规范输出、摘要或错误顺序�
 - 24 个 obligation-complete 场景继续通过后续 state / support 闭合；bundle generator 已为 `replay-counterexample` fixture tool 补齐规范 `counterexample-replayer` role，并增加 kind / role 生成门禁；
 - 同一 24 个场景继续通过 counterexample world / WF 边界；核心及 host/output 失败见证必须由 IR 声明确认 WF，四个 input-conformance 负例允许保持已锚定的范围、`Pre` 或键失败；
 - 同一 24 个场景继续通过 concrete input / `Pre` 边界，覆盖 12 个唯一 `host-input`；四个 invalid-input 分别由真实 `Pre` 或重复键失败支撑；
-- 同一 24 个场景继续通过 proof-failure target replay、concrete output comparison 与 proof support 审计；后者明确得到独立证明数 0、160 项缺失 proof material，不能由结构成功升级；
+- 同一 24 个场景继续通过 proof-failure target replay、concrete output comparison、proof support 审计与 production conclusion 重算；后两层分别保留独立证明数 0、160 项缺失 proof material，并得到 7 / 4 / 8 / 4 / 1 的 conclusion 分布，不能由结构成功升级；
 - `chk-bundle-01`、`chk-digest-01`、`chk-resource-01` 分别在缺失 artifact、raw content SHA-256、资源限制层拒绝，Evidence parser 不得越过这些失败；
 - 25 份 Evidence 的 raw content digest 与 manifest 一致，document domain digest 与版本化 bundle-set / expected result 一致，subject 双摘要与独立 Axiom IR parser 一致；
 - parser 负例覆盖未知 member / version / support tag、非规范 artifact / ref 顺序、definition domain ID 漂移、悬空 producer、重复 conclusion ref、错误 subject artifact，以及 Evidence document / IR subject 外部绑定不匹配；

@@ -63,6 +63,6 @@ response 只接受一个精确 status frame：`unsat\n`、`sat\n` 或 `unknown\n
 
 每个唯一 proof / tool artifact 的原始字节计入确定性逻辑内存和 semantic-step 预算，单 artifact 继续受 request `artifact-bytes` / JSON 限制；摘要在解析前重算。`wall-clock` 的 checker 内部累计中断仍未实现，边界与仓库其他切片一致。
 
-本切片不执行 cvc5、Node.js、生产 compiler 或 adapter，不解释 SMT term，不重放 kernel rule，不检查 certificate，不证明 query theorem 与独立 obligation 等价，不重算 Evidence conclusion，不汇总全部 remaining trust / missing artifact，不应用完整 assurance policy，也不生成 checker binary、`checker.artifact`、CLI 或独立四态 result。
+本切片不执行 cvc5、Node.js、生产 compiler 或 adapter，不解释 SMT term，不重放 kernel rule，不检查 certificate，不证明 query theorem 与独立 obligation 等价，不重算 Evidence conclusion，不汇总全部 remaining trust / missing artifact，不应用完整 assurance policy，也不生成 checker binary、`checker.artifact`、CLI 或独立四态 result。调用方必须继续进入 [production conclusion 确定性重算](axiom-evidence-conclusion-v0.1.md)，不能用 proof audit 成功或 producer `satisfied` 跳过该层。
 
-`InspectProofSupports` 成功只表示审计过程本身完整结束；调用方必须读取 `IndependentlyVerified`、`AttestationsConfirmed`、`MissingProofMaterial`、`RemainingTrust` 和逐项 finding，不能把 `error == nil` 当成所有 `proved` 已经成立。
+`InspectProofSupports` 成功只表示审计过程本身完整结束；调用方必须读取 `IndependentlyVerified`、`AttestationsConfirmed`、`MissingProofMaterial`、`RemainingTrust` 和逐项 finding，不能把 `error == nil` 当成所有 `proved` 已经成立。后续 `VerifyConclusion` 只验证生产 Evidence 是否忠实聚合其五态，不消费或抹除这些独立 proof 分类。

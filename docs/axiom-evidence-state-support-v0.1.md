@@ -72,6 +72,6 @@ artifact subject 必须出现在 result artifacts。缺失、多余或未知 art
 
 ## 停止线
 
-`VerifyStateSupport` 本身不验证 kernel rule、certificate 或 backend attestation 真值，不解释 obligation-set / query 定理，不重放 counterexample、输入、host 或 golden output，不判断 witness 最小性，不重算 conclusion，不应用 assurance policy，也不生成 remaining trust、missing artifact、checker binary、`checker.artifact`、CLI 或独立四态 result。调用方仍须按顺序进入已经实现的 world / `WF`、concrete input / `Pre`、target replay、output comparison 与 proof support 审计。
+`VerifyStateSupport` 本身不验证 kernel rule、certificate 或 backend attestation 真值，不解释 obligation-set / query 定理，不重放 counterexample、输入、host 或 golden output，不判断 witness 最小性，不重算 conclusion，不应用 assurance policy，也不生成 remaining trust、missing artifact、checker binary、`checker.artifact`、CLI 或独立四态 result。调用方仍须按顺序进入已经实现的 world / `WF`、concrete input / `Pre`、target replay、output comparison、proof support 审计与 production conclusion 重算。
 
 `VerifyStateSupport` 成功只表示锁定 Evidence 的状态与引用关系闭合，不能升级为 `checked`、`proved`、`accepted` 或六平台结论。

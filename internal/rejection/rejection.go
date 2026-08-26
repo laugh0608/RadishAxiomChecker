@@ -11,6 +11,7 @@ type Code string
 const (
 	ArtifactMissing            Code = "artifact-missing"
 	ConcreteCheckMismatch      Code = "concrete-check-mismatch"
+	ConclusionMismatch         Code = "conclusion-mismatch"
 	CounterexampleInvalid      Code = "counterexample-invalid"
 	DigestMismatch             Code = "digest-mismatch"
 	DuplicateArtifact          Code = "duplicate-artifact"

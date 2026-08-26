@@ -67,6 +67,16 @@ type trustDefinition struct {
 	scopeDocument protocol.Digest
 }
 
+type conclusionReference struct {
+	kind  string
+	value protocol.Digest
+}
+
+type conclusionDefinition struct {
+	kind string
+	refs []conclusionReference
+}
+
 type parser struct {
 	artifacts   map[protocol.Digest]artifactDefinition
 	tools       map[protocol.Digest]toolDefinition
@@ -82,6 +92,7 @@ type parser struct {
 	obligationRefs map[protocol.Digest]struct{}
 	trustRefs      map[protocol.Digest]struct{}
 	documentRefs   map[protocol.Digest]struct{}
+	conclusionKind string
 	conclusionRefs []protocol.Digest
 
 	producer          protocol.Digest
@@ -197,6 +208,7 @@ func ParseStructure(data []byte, limits strictjson.Limits) (Document, error) {
 		obligations:       cloneObligations(p.obligations),
 		results:           cloneResults(p.results),
 		trust:             cloneTrust(p.trust),
+		conclusion:        p.resolvedConclusion(),
 	}, nil
 }
 
@@ -306,4 +318,16 @@ func (p *parser) validateReferences() error {
 		return rejection.New(rejection.InvalidJSON, "Axiom Evidence subject does not resolve to an Axiom IR v0.1 artifact")
 	}
 	return nil
+}
+
+func (p *parser) resolvedConclusion() conclusionDefinition {
+	refs := make([]conclusionReference, 0, len(p.conclusionRefs))
+	for _, ref := range p.conclusionRefs {
+		kind := "execution"
+		if _, ok := p.obligations[ref]; ok {
+			kind = "obligation"
+		}
+		refs = append(refs, conclusionReference{kind: kind, value: ref})
+	}
+	return conclusionDefinition{kind: p.conclusionKind, refs: refs}
 }

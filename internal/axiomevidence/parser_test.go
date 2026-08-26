@@ -50,6 +50,8 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 	proofUnsupported := 0
 	proofPolicySatisfied := 0
 	proofMissingMaterial := 0
+	conclusionComplete := 0
+	conclusionKinds := make(map[string]int)
 	uniqueEvidence := make(map[protocol.Digest]struct{})
 	uniqueIR := make(map[protocol.Digest]struct{})
 	uniqueInputs := make(map[protocol.Digest]struct{})
@@ -159,6 +161,12 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 				proofUnsupported += proofCheck.UnsupportedClaims
 				proofPolicySatisfied += proofCheck.ProofPolicySatisfied
 				proofMissingMaterial += proofCheck.MissingProofMaterial
+				conclusionCheck, err := document.VerifyConclusion(conclusionLimitsFrom(verified.Request))
+				if err != nil {
+					t.Fatal(err)
+				}
+				conclusionComplete++
+				conclusionKinds[conclusionCheck.Kind]++
 			}
 			if document.Counts.Artifacts == 0 || document.Counts.Executions == 0 ||
 				document.Counts.Obligations == 0 || document.Counts.Tools == 0 {
@@ -220,6 +228,14 @@ func TestParseStructureImportedTwentyEightBundleBoundary(t *testing.T) {
 			proofPolicySatisfied, proofMissingMaterial,
 		)
 	}
+	if conclusionComplete != 24 ||
+		conclusionKinds[axiomevidence.ConclusionSatisfied] != 7 ||
+		conclusionKinds[axiomevidence.ConclusionInputRejected] != 4 ||
+		conclusionKinds[axiomevidence.ConclusionViolated] != 8 ||
+		conclusionKinds[axiomevidence.ConclusionInconclusive] != 4 ||
+		conclusionKinds[axiomevidence.ConclusionImplementationInconsistent] != 1 {
+		t.Fatalf("unexpected independently recomputed conclusion distribution: %+v", conclusionKinds)
+	}
 	if failedComparisons != 1 || replayedMismatches != 3 {
 		t.Fatalf(
 			"expected one failed comparison and three replayed mismatch obligations, got %d and %d",
@@ -254,6 +270,15 @@ func counterexampleLimitsFrom(request protocol.Request) axiomir.ExecutionLimits 
 	workingMemory, _ := request.Limit("working-memory")
 	semanticSteps, _ := request.Limit("semantic-steps")
 	return axiomir.ExecutionLimits{
+		MaxLogicalBytes:  workingMemory,
+		MaxSemanticSteps: semanticSteps,
+	}
+}
+
+func conclusionLimitsFrom(request protocol.Request) axiomevidence.ConclusionLimits {
+	workingMemory, _ := request.Limit("working-memory")
+	semanticSteps, _ := request.Limit("semantic-steps")
+	return axiomevidence.ConclusionLimits{
 		MaxLogicalBytes:  workingMemory,
 		MaxSemanticSteps: semanticSteps,
 	}
@@ -347,6 +372,22 @@ func TestParseStructureRejectsDuplicateConclusionReference(t *testing.T) {
 	mutated := duplicateSecondDigestInArray(t, data, []byte(`"conclusion":`), []byte(`"refs":[`))
 	_, err := axiomevidence.ParseStructure(mutated, fixtureLimits())
 	assertCode(t, err, rejection.NoncanonicalOrder)
+}
+
+func TestVerifyConclusionRejectsTamperedProducerBytes(t *testing.T) {
+	data := lockedEvidence(t, "ax-b01-correct")
+	mutated := replaceOnce(t, data,
+		[]byte(`"conclusion":{"kind":"satisfied","refs":[]}`),
+		[]byte(`"conclusion":{"kind":"violated","refs":[]}`),
+	)
+	document, err := axiomevidence.ParseStructure(mutated, fixtureLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = document.VerifyConclusion(axiomevidence.ConclusionLimits{
+		MaxLogicalBytes: 1 << 20, MaxSemanticSteps: 1_000_000,
+	})
+	assertCode(t, err, rejection.ConclusionMismatch)
 }
 
 func TestDocumentBindingsRejectMismatch(t *testing.T) {

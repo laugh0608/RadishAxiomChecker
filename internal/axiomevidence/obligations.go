@@ -391,7 +391,8 @@ func (p *parser) parseConclusion(value strictjson.Value) error {
 		"satisfied":                   {},
 		"violated":                    {},
 	}
-	if _, err := requireOneOf(fields["kind"], allowed, "unsupported Axiom Evidence conclusion kind"); err != nil {
+	p.conclusionKind, err = requireOneOf(fields["kind"], allowed, "unsupported Axiom Evidence conclusion kind")
+	if err != nil {
 		return err
 	}
 	p.conclusionRefs, err = parseDigestSet(fields["refs"], false, "Axiom Evidence conclusion refs are unsorted or duplicate")
