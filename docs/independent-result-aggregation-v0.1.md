@@ -1,6 +1,6 @@
 # Independent Check 内存结果聚合切片
 
-本文冻结 checker 对已经进入结果层的 keyed-finite-table bundle 所形成的内存级 check、remaining trust、missing artifact、身份边界与四态结果。规范真相源仍是 RadishAxiom 主仓库按摘要锁定的 Independent Check Contract v0.1 与 ADR 0008；本实现不读取 `expected-result.jcs` 来决定实际结果，也不生成 canonical companion document。
+本文冻结 checker 对已经进入结果层的 keyed-finite-table bundle 所形成的内存级 check、remaining trust、missing artifact、身份边界与四态结果。规范真相源仍是 RadishAxiom 主仓库按摘要锁定的 Independent Check Contract v0.1 与 ADR 0008；本实现不读取 `expected-result.jcs` 来决定实际结果。后续 [canonical companion 与 invocation failure](canonical-companion-v0.1.md) 只编码这里已经形成的结果，不建立第二套聚合器。
 
 入口为 `checkresult.EvaluateVerifiedBundle`。它只接受已经由 `bundle.Verify` 严格解析 request / manifest、验证全部现存 blob 并形成缺失 blob 清单的输入；随后重新打开 Evidence 与 IR，调用 checker 自有 parser、义务重建、状态检查、有限重放、proof support 审计与 production conclusion 重算。Evidence / IR 无法形成结构化 Document 时不会伪造四态结果，仍由更早的调用层保留真实失败。
 
@@ -62,6 +62,6 @@ manifest 列出但目录缺失的 blob 由 `bundle.Verify` 形成排序唯一的
 
 25 个实际进入结果层且具有独立 expected companion 的场景由真实 bundle / Evidence / IR findings 形成：22 个 `accepted-with-trust`、2 个 `incomplete`、1 个 `rejected`。remaining trust 与 missing artifact 清单逐项匹配版本化锁定记录；正确报告 `violated`、`input_rejected` 与 `implementation_inconsistent` 的场景均可被独立接受。`CHK-PROOF-01` 的 12 项 attestation 在 `certificate-required` 下保持 incomplete，`CHK-PROOF-02` 在 `attestation-allowed` 下保持 trust，独立证明数均为 0。四态优先级、check ID、缺失 TCB / check、不可用 document identity、缺失 artifact、不允许 trust 与 100 次确定性重复均有独立测试。
 
-`chk-digest-01`、`chk-resource-01` 仍在进入此 API 前失败关闭；`chk-process-01` 描述外层进程终止，调用方不得据此制造 checker result。下一切片才能决定这些前置失败如何进入完整 invocation / canonical companion 边界。
+`chk-digest-01`、`chk-resource-01` 仍在进入此 API 前失败关闭；`chk-process-01` 描述外层进程终止，调用方不得据此制造 checker result。后续 codec 已把进程失败物化为独立 `not-produced` 记录，但 digest / 内部资源失败进入完整 invocation 的实际形成路径仍未收口。
 
-本切片不生成 canonical result JCS，不实现 result parser、产品 CLI、checker binary 或 `checker.artifact`，不累计完整跨阶段资源，不实现内部 wall-clock 中断，不检查 minimality，不增加 kernel / certificate 能力，不执行 solver、Node、生产 compiler 或 adapter，也不产生六平台结果。
+本切片自身不生成 canonical result JCS；后续 codec 已实现 encoder / parser，但仍没有实际 checker binary 或 `checker.artifact` 可形成正式运行 companion。本仓库不实现产品 CLI，不累计完整跨阶段资源，不实现内部 wall-clock 中断，不检查 minimality，不增加 kernel / certificate 能力，不执行 solver、Node、生产 compiler 或 adapter，也不产生六平台结果。
