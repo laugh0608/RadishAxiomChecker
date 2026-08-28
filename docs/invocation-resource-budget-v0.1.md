@@ -31,4 +31,4 @@ request 自己尚未解析时，严格 parser 只受实现硬上限保护；解�
 
 本切片不实现产品 CLI，不构建、验收或发布 checker binary / `checker.artifact`，不实现 launcher 的 OS hard limit，不执行 solver、Node 或生产 compiler，不检查 counterexample minimality，也不增加 kernel / certificate 能力。测试使用的 runtime binary / TCB digest 仍是合成契约身份，不是可发布 payload 或六平台证据。
 
-后续 [Independent Checker CLI v0.1](checker-cli-v0.1.md) 已将本入口接入唯一产品命令，但没有改变这里的累计账本、内部 / 外层资源分类或本切片当时的合成身份边界；正式构建、artifact 登记与 launcher OS hard limit 仍须独立完成。
+后续 [Independent Checker CLI v0.1](checker-cli-v0.1.md) 已将本入口接入唯一产品命令，[macOS arm64 受控构建与 payload acceptance v0.1](checker-artifact-build-v0.1.md) 也已完成首个仓库外候选的可重复构建与独立验收，但都没有改变这里的累计账本、内部 / 外层资源分类或本切片当时的合成身份边界；主仓 artifact 登记与 launcher OS hard limit 仍须独立完成。

@@ -56,7 +56,7 @@ manifest 列出但目录缺失的 blob 由 `bundle.Verify` 形成排序唯一的
 - 当前 checker source digest、实际调用方提供的 Go toolchain 与实现版本；
 - `canonicalization`、`checker-core`、`cryptographic-primitive`、`rule-interpreter` 四个必需 TCB source / version，未来实际使用 certificate checker 时可增加对应条目。
 
-缺少 checker source / toolchain / version、任一必需 TCB 或非拒绝结果所需的 Evidence / request domain identity时，不形成规范内存结果。这里明确绑定的是 source，而不是尚未构建的 checker binary；不得把 source digest 写成 `checker.artifact`。
+缺少 checker source / toolchain / version、任一必需 TCB 或非拒绝结果所需的 Evidence / request domain identity时，不形成规范内存结果。这里明确只绑定 source-level 身份；后续已经构建的 checker binary 仍必须由 companion / CLI runtime identity 层作为独立 `checker.artifact` 传入，不得把 source digest 写成 binary identity。
 
 ## 锁定语料与停止线
 
@@ -64,4 +64,4 @@ manifest 列出但目录缺失的 blob 由 `bundle.Verify` 形成排序唯一的
 
 `EvaluateVerifiedBundle` 继续是无累计调用状态的局部内存 API；完整路径由 [invocation 与累计资源边界](invocation-resource-budget-v0.1.md) 调度。后者使 `chk-digest-01` 与 `chk-resource-01` 在真实身份可绑定后分别形成 `rejected` / `incomplete`，而 `chk-process-01` 的外层终止继续只能形成独立 `not-produced` 记录，不能制造 checker 四态。
 
-本切片自身不生成 canonical result JCS；后续 codec 与 invocation 已分别实现编码和完整累计调度，但仍没有实际 checker binary 或 `checker.artifact` 可形成正式运行 companion。本仓库不实现产品 CLI，不实现 launcher OS hard limit，不检查 minimality，不增加 kernel / certificate 能力，不执行 solver、Node、生产 compiler 或 adapter，也不产生六平台结果。
+本切片自身不生成 canonical result JCS；后续 codec、invocation 与产品 CLI 已分别实现编码、完整累计调度和真实 runtime identity 绑定，受控构建 / payload acceptance 也已形成一个 macOS arm64 仓库外候选。候选尚未完成主仓登记或 launcher 外部复核，因此仍不形成正式产品 runtime companion。本仓库继续不实现 launcher OS hard limit，不检查 minimality，不增加 kernel / certificate 能力，不执行 solver、Node、生产 compiler 或 adapter，也不产生六平台结果。

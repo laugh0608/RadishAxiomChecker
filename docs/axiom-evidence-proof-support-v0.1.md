@@ -63,6 +63,6 @@ response 只接受一个精确 status frame：`unsat\n`、`sat\n` 或 `unknown\n
 
 每个唯一 proof / tool artifact 的原始字节计入确定性逻辑内存和 semantic-step 预算，单 artifact 继续受 request `artifact-bytes` / JSON 限制；摘要在解析前重算。完整 invocation 将这些消费并入同一账本，并在 check 前后、semantic step 边界与编码前执行内部 `wall-clock` 门禁。
 
-本方法不执行 cvc5、Node.js、生产 compiler 或 adapter，不解释 SMT term，不重放 kernel rule，不检查 certificate，不证明 query theorem 与独立 obligation 等价，也不重算 Evidence conclusion。调用方必须继续进入 [production conclusion 确定性重算](axiom-evidence-conclusion-v0.1.md)、[Independent Check 内存结果聚合](independent-result-aggregation-v0.1.md) 与 [canonical companion codec](canonical-companion-v0.1.md)，不能用 proof audit 成功或 producer `satisfied` 跳过后续层；本方法自身不生成 companion，仓库仍没有实际 checker binary、`checker.artifact` 或产品 CLI。
+本方法不执行 cvc5、Node.js、生产 compiler 或 adapter，不解释 SMT term，不重放 kernel rule，不检查 certificate，不证明 query theorem 与独立 obligation 等价，也不重算 Evidence conclusion。调用方必须继续进入 [production conclusion 确定性重算](axiom-evidence-conclusion-v0.1.md)、[Independent Check 内存结果聚合](independent-result-aggregation-v0.1.md) 与 [canonical companion codec](canonical-companion-v0.1.md)，不能用 proof audit 成功或 producer `satisfied` 跳过后续层；本方法自身不生成 companion。后续产品 CLI、受控构建和 payload acceptance 只把同一 proof 分类带入真实 runtime identity，不会把这里的 0 个独立 proof、attestation 或缺失材料升级为已证明。
 
 `InspectProofSupports` 成功只表示审计过程本身完整结束；调用方必须读取 `IndependentlyVerified`、`AttestationsConfirmed`、`MissingProofMaterial`、`RemainingTrust` 和逐项 finding，不能把 `error == nil` 当成所有 `proved` 已经成立。后续 `VerifyConclusion` 只验证生产 Evidence 是否忠实聚合其五态，不消费或抹除这些独立 proof 分类。

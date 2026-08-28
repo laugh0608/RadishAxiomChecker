@@ -12,7 +12,7 @@
 - Evidence 与 request 的 raw content identity，并在非拒绝结果中具有 document-domain identity；
 - 已经形成的 checks、missing artifact、remaining trust 与四态结果。
 
-encoder 不从 Git commit、tree、源码摘要、expected result 或相邻文件推导 binary。`checker.artifact == checker.source`、TCB source 冒充 runtime artifact、缺失或错版本 TCB、非 `go1.26.7` toolchain 均停止形成 companion。当前仓库没有实际构建 checker binary，因此真实开发调用仍只保留内存结果；测试中的 binary / TCB digest 是合成契约身份，不是已验收 payload。
+encoder 不从 Git commit、tree、源码摘要、expected result 或相邻文件推导 binary。`checker.artifact == checker.source`、TCB source 冒充 runtime artifact、缺失或错版本 TCB、非 `go1.26.7` toolchain 均停止形成 companion。本 companion 切片形成时还没有实际 checker binary，因此锁定测试中的 binary / TCB digest 只是合成契约身份；后续受控构建与 payload acceptance 已产生过仓库外已验收候选，但只有该精确候选完成主仓登记并由 launcher 外部复核后，才能形成正式 runtime companion。
 
 规范编码按顶层 JCS member 顺序输出；checks 按 ID、code 按字典序、ref 按 `(kind, ref)`、missing / trust / result refs 按 digest、TCB 按 `(category, artifact)` 排序且唯一。完整结果使用
 
@@ -46,4 +46,4 @@ encoder 不从 Git commit、tree、源码摘要、expected result 或相邻文�
 
 本切片不实现产品 CLI，不构建、验收或发布 checker binary / `checker.artifact`，不执行 solver、Node、生产 compiler 或 adapter，不增加 kernel / certificate 能力，不检查 minimality，也不产生六平台运行证据。
 
-后续 [Independent Checker CLI v0.1](checker-cli-v0.1.md) 已把 runtime identity validator 与本 encoder 接入唯一命令入口；普通本机构建和测试合成 executable 仍不构成已验收 `checker.artifact`，也不改变外层 `not-produced` failure 边界。
+后续 [Independent Checker CLI v0.1](checker-cli-v0.1.md) 已把 runtime identity validator 与本 encoder 接入唯一命令入口，[macOS arm64 受控构建与 payload acceptance v0.1](checker-artifact-build-v0.1.md) 也已形成 source → artifact 的可重复构建和独立验收路径。普通本机构建与测试合成 executable 仍不构成已验收 `checker.artifact`；本地 acceptance 候选也不自动等于主仓已登记、launcher 已复核或产品已安装的 payload，并且不改变外层 `not-produced` failure 边界。
