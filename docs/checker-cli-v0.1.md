@@ -37,4 +37,4 @@ CLI 在 bundle I/O 之前调用 companion 层的同一 runtime identity validato
 
 `internal/checkercli` 的测试以合成 executable bytes 和明确标注的 `0.1-test` 身份覆盖 normal、`CHK-DIGEST-01`、`CHK-RESOURCE-01` 三条真实 bundle 路径，严格参数 / stdin / realpath 拒绝、重复运行字节一致、身份失配、bundle 失败、stderr 上限与 stdout 截断。合成 identity 只验证接口和进程内逻辑，不是正式 `checker.artifact`。
 
-本切片不构建、验收、登记、安装或发布正式 checker binary，不生成 `checker.artifact` sidecar，不形成 reproduction / acceptance receipt，也不实现 launcher 的空环境、只读文件系统、网络隔离、`6,000 ms` hard wall、`128 MiB` memory limit 或 stdout hard cap。当前本机非 `go1.26.7` 的开发构建只能验证编译和失败关闭，不能形成正式 companion；下一切片必须先实现独立、可审阅的受控构建与 artifact identity，再进入 OS launcher 和六平台安装协调。
+本 CLI 切片自身不构建、验收、登记、安装或发布 checker binary，也不实现 launcher 的空环境、只读文件系统、网络隔离、`6,000 ms` hard wall、`128 MiB` memory limit 或 stdout hard cap。后续 [macOS arm64 受控构建与 payload acceptance v0.1](checker-artifact-build-v0.1.md) 已提供 source → artifact 的本地可重复构建和独立验收入口，但只有精确 payload 实际通过并由主仓另行登记后，才能形成正式 runtime companion；其他平台和产品安装仍须独立协调。
