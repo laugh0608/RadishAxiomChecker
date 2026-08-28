@@ -6,6 +6,7 @@ import (
 	"radishaxiom.dev/independent-checker-go/internal/axiomir"
 	"radishaxiom.dev/independent-checker-go/internal/protocol"
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
+	"radishaxiom.dev/independent-checker-go/internal/resourcebudget"
 )
 
 var executionRoles = map[string]string{
@@ -26,6 +27,10 @@ var executionRoles = map[string]string{
 // checked results. It does not replay proof rules, certificates, concrete data,
 // or counterexamples, and it does not recompute the Evidence conclusion.
 func (d Document) VerifyStateSupport() error {
+	return d.VerifyStateSupportWithLedger(nil)
+}
+
+func (d Document) VerifyStateSupportWithLedger(ledger *resourcebudget.Ledger) error {
 	if len(d.results) != len(d.obligations) {
 		return invalidStateSupport("Axiom Evidence obligation result cardinality mismatch")
 	}
@@ -36,6 +41,11 @@ func (d Document) VerifyStateSupport() error {
 	}
 	sortDigests(executionIDs)
 	for _, id := range executionIDs {
+		if ledger != nil {
+			if err := ledger.ChargeSemanticSteps(1); err != nil {
+				return err
+			}
+		}
 		execution := d.executions[id]
 		role, ok := executionRoles[execution.kind]
 		if !ok {
@@ -56,6 +66,11 @@ func (d Document) VerifyStateSupport() error {
 	}
 	sortDigests(obligationIDs)
 	for _, id := range obligationIDs {
+		if ledger != nil {
+			if err := ledger.ChargeSemanticSteps(1); err != nil {
+				return err
+			}
+		}
 		definition := d.obligations[id]
 		result, ok := d.results[id]
 		if !ok {

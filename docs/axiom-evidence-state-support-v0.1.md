@@ -65,7 +65,7 @@ artifact subject 必须出现在 result artifacts。缺失、多余或未知 art
 
 ## 场景与负例
 
-- 28 个导入 bundle 中，digest / resource 两个场景继续在前置层拒绝；`chk-bundle-01` 验证现存 blob 后保留缺失 artifact 并进入 `incomplete` 结果层，`chk-obligation-01` 继续在 obligation completeness 拒绝；
+- 28 个导入 bundle 中，局部 state / support API 不接收 digest / resource 两个前置场景；完整 invocation 将它们分别物化为 `rejected` / `incomplete`。`chk-bundle-01` 验证现存 blob 后保留缺失 artifact 并进入 `incomplete` 结果层，`chk-obligation-01` 继续在 obligation completeness 拒绝；
 - 其余 24 个完整链路场景逐项通过 state / support 闭合，覆盖 proved、checked、unknown、failed、trusted、kernel replay、backend attestation、timeout、unavailable、host execution、output comparison 与 counterexample replay；
 - 合成负例覆盖 expectation / state 误用、缺失 support、错误 tool role、未完成 prove execution、attempt reason 漂移、attestation trust 遗漏、response 漂移、checked artifact 闭包遗漏、trusted scope 漂移和 failed execution kind 漂移；
 - 同一有效文档重复验证 100 次保持相同成功结果。

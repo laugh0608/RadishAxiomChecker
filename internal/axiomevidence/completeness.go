@@ -8,6 +8,7 @@ import (
 	"radishaxiom.dev/independent-checker-go/internal/axiomir"
 	"radishaxiom.dev/independent-checker-go/internal/protocol"
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
+	"radishaxiom.dev/independent-checker-go/internal/resourcebudget"
 	"radishaxiom.dev/independent-checker-go/internal/strictjson"
 )
 
@@ -16,6 +17,13 @@ import (
 // benchmark execution boundary, and declared trust entries. It compares exact
 // definitions and domain IDs. It does not judge result states or executions.
 func (d Document) VerifyObligationCompleteness(ir axiomir.Document) error {
+	return d.VerifyObligationCompletenessWithLedger(ir, nil)
+}
+
+func (d Document) VerifyObligationCompletenessWithLedger(
+	ir axiomir.Document,
+	ledger *resourcebudget.Ledger,
+) error {
 	if err := d.VerifyIRSubject(ir.ContentDigest, ir.DomainDigest); err != nil {
 		return err
 	}
@@ -23,10 +31,20 @@ func (d Document) VerifyObligationCompleteness(ir axiomir.Document) error {
 	if err != nil {
 		return err
 	}
+	if ledger != nil {
+		if err := ledger.ChargeSemanticSteps(uint64(len(expected))); err != nil {
+			return err
+		}
+	}
 	if len(expected) != len(d.obligations) {
 		return rejection.New(rejection.ObligationMismatch, "Axiom Evidence obligation set cardinality mismatch")
 	}
 	for id, definition := range expected {
+		if ledger != nil {
+			if err := ledger.ChargeSemanticSteps(1); err != nil {
+				return err
+			}
+		}
 		observed, ok := d.obligations[id]
 		if !ok {
 			return rejection.New(rejection.ObligationMismatch, "Axiom Evidence is missing an independently reconstructed obligation")

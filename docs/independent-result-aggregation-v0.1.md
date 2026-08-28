@@ -62,6 +62,6 @@ manifest 列出但目录缺失的 blob 由 `bundle.Verify` 形成排序唯一的
 
 25 个实际进入结果层且具有独立 expected companion 的场景由真实 bundle / Evidence / IR findings 形成：22 个 `accepted-with-trust`、2 个 `incomplete`、1 个 `rejected`。remaining trust 与 missing artifact 清单逐项匹配版本化锁定记录；正确报告 `violated`、`input_rejected` 与 `implementation_inconsistent` 的场景均可被独立接受。`CHK-PROOF-01` 的 12 项 attestation 在 `certificate-required` 下保持 incomplete，`CHK-PROOF-02` 在 `attestation-allowed` 下保持 trust，独立证明数均为 0。四态优先级、check ID、缺失 TCB / check、不可用 document identity、缺失 artifact、不允许 trust 与 100 次确定性重复均有独立测试。
 
-`chk-digest-01`、`chk-resource-01` 仍在进入此 API 前失败关闭；`chk-process-01` 描述外层进程终止，调用方不得据此制造 checker result。后续 codec 已把进程失败物化为独立 `not-produced` 记录，但 digest / 内部资源失败进入完整 invocation 的实际形成路径仍未收口。
+`EvaluateVerifiedBundle` 继续是无累计调用状态的局部内存 API；完整路径由 [invocation 与累计资源边界](invocation-resource-budget-v0.1.md) 调度。后者使 `chk-digest-01` 与 `chk-resource-01` 在真实身份可绑定后分别形成 `rejected` / `incomplete`，而 `chk-process-01` 的外层终止继续只能形成独立 `not-produced` 记录，不能制造 checker 四态。
 
-本切片自身不生成 canonical result JCS；后续 codec 已实现 encoder / parser，但仍没有实际 checker binary 或 `checker.artifact` 可形成正式运行 companion。本仓库不实现产品 CLI，不累计完整跨阶段资源，不实现内部 wall-clock 中断，不检查 minimality，不增加 kernel / certificate 能力，不执行 solver、Node、生产 compiler 或 adapter，也不产生六平台结果。
+本切片自身不生成 canonical result JCS；后续 codec 与 invocation 已分别实现编码和完整累计调度，但仍没有实际 checker binary 或 `checker.artifact` 可形成正式运行 companion。本仓库不实现产品 CLI，不实现 launcher OS hard limit，不检查 minimality，不增加 kernel / certificate 能力，不执行 solver、Node、生产 compiler 或 adapter，也不产生六平台结果。

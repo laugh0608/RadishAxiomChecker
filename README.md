@@ -21,10 +21,11 @@
 - [Axiom Evidence v0.1 conclusion 确定性重算切片](docs/axiom-evidence-conclusion-v0.1.md)：不读取 producer conclusion、pipeline receipt 或 expected result 作为真相源，按规范优先级从已检查 obligation state 与必需 execution 独立形成 kind / refs，并以 `conclusion-mismatch` 拒绝生产聚合漂移。
 - [Independent Check 内存结果聚合切片](docs/independent-result-aggregation-v0.1.md)：将十类真实检查物化为契约 check ID，保守形成 remaining trust 与 missing artifact，并按拒绝、incomplete、允许 trust、无 trust 的唯一顺位形成四态内存结果，同时绑定 Evidence / request 双摘要与 checker source / toolchain / TCB 边界。
 - [Independent Check canonical companion 与 invocation failure](docs/canonical-companion-v0.1.md)：对具有显式 checker binary / runtime TCB 身份的内存结果实施唯一 JCS 编码、严格重解析与 result-domain identity 复算，并让外层进程失败只形成绑定 request 的 `not-produced` 记录。
+- [Independent Checker invocation 与累计资源边界](docs/invocation-resource-budget-v0.1.md)：用一次调用唯一的累计账本连接前置身份、十类检查和编码前门禁，让 `CHK-DIGEST-01` / `CHK-RESOURCE-01` 分别形成真实 `rejected` / `incomplete`，并让 `CHK-PROCESS-01` 继续只形成外层 `not-produced` failure。
 
 Git commit / tree 不充当 `checker.source`，仓库也不生成 checker binary 或 `checker.artifact`。Axiom IR、Evidence 结构、obligation completeness、state / support、counterexample world / WF、concrete input / Pre、proof-failure target replay、concrete output comparison、proof support 审计、production conclusion 重算、四态内存结果与 canonical codec 闭合通过不等于完整语义接受：有限解释只确认锁定具体 world / artifact、query envelope、status、attestation、生产聚合与 assurance policy 关系，不证明其他输入或 query theorem；当前实现不重放 kernel rule，不把 backend attestation 升级为独立 proof，不检查 minimality，不检查 certificate，也没有实际 checker binary 身份可形成正式运行 companion 或产品 CLI。测试通过仅表示这些实现路径被检查，不构成形式证明或跨平台结论。
 
-当前资源实现收口实际消费的 request / manifest / artifact 字节、JSON 深度 / item / step、bundle 总字节、流式 SHA-256、concrete input / output、proof support artifact、conclusion ref 与 DAG table 的确定性逻辑字节，以及 assume、node、row、lookup、aggregate、contract replay、output comparison、proof envelope inspection 与 conclusion traversal step；明确的局部资源失败可进入内存 `incomplete`。`wall-clock` 尚未形成 checker 内部中断机制，完整跨阶段累计计数和外层进程限制仍属于后续切片；这里不会把未实现的计数伪装成已执行。
+完整调用现在用一个账本累计 request / manifest / artifact 的 JSON item / depth / token、唯一 manifest artifact bytes、64 KiB digest blocks、各语义检查 step 和仍存活预算对象的确定性逻辑字节；十类 check 前后、每 1,024 semantic steps 与编码前执行内部 monotonic `wall-clock` 门禁。内部资源不足在真实身份可绑定时形成 `incomplete`，既有确定拒绝继续优先；外层 kill、crash、hard deadline 与输出截断仍只形成 `not-produced` failure。局部 API 保留自己的硬上限，不能绕过完整 invocation 的累计账本。
 
 ## 工具链与验证
 

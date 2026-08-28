@@ -11,6 +11,15 @@ type Limits struct {
 	MaxDepth uint64
 	MaxItems uint64
 	MaxSteps uint64
+	Counter  Counter
+}
+
+// Counter receives invocation-wide events in addition to the parser's local
+// hard limits. Implementations must preserve the first resource exhaustion.
+type Counter interface {
+	ChargeCollectionItems(uint64) error
+	ChargeSemanticSteps(uint64) error
+	ObserveJSONDepth(uint64) error
 }
 
 type parser struct {
@@ -75,10 +84,20 @@ func (p *parser) value(openContainers uint64) (Value, error) {
 		if openContainers == p.limits.MaxDepth {
 			return Value{}, reject(CodeResourceLimit, p.pos, "JSON depth limit exceeded")
 		}
+		if p.limits.Counter != nil {
+			if err := p.limits.Counter.ObserveJSONDepth(openContainers + 1); err != nil {
+				return Value{}, err
+			}
+		}
 		return p.object(openContainers + 1)
 	case '[':
 		if openContainers == p.limits.MaxDepth {
 			return Value{}, reject(CodeResourceLimit, p.pos, "JSON depth limit exceeded")
+		}
+		if p.limits.Counter != nil {
+			if err := p.limits.Counter.ObserveJSONDepth(openContainers + 1); err != nil {
+				return Value{}, err
+			}
 		}
 		return p.array(openContainers + 1)
 	case '"':
@@ -380,6 +399,11 @@ func (p *parser) addItem() error {
 	if p.items > p.limits.MaxItems {
 		return reject(CodeResourceLimit, p.pos, "collection item limit exceeded")
 	}
+	if p.limits.Counter != nil {
+		if err := p.limits.Counter.ChargeCollectionItems(1); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -387,6 +411,11 @@ func (p *parser) step() error {
 	p.steps++
 	if p.steps > p.limits.MaxSteps {
 		return reject(CodeResourceLimit, p.pos, "parser step limit exceeded")
+	}
+	if p.limits.Counter != nil {
+		if err := p.limits.Counter.ChargeSemanticSteps(1); err != nil {
+			return err
+		}
 	}
 	return nil
 }

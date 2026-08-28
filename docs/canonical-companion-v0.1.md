@@ -42,6 +42,6 @@ encoder 不从 Git commit、tree、源码摘要、expected result 或相邻文�
 
 测试覆盖严格拒绝黄金字节 / 双摘要、27 份指定 companion、25 个实际结果 round-trip、checker binary 缺失、source / binary / TCB 混用、check ID、result kind / ref、check / trust / ref / TCB 顺序、document availability、runtime TCB 漂移、request failure 绑定和 100 次确定性重复。
 
-当前尚未建立完整 invocation orchestrator：`chk-digest-01` 的前置身份拒绝和 `chk-resource-01` 的内部资源不足仍由既有分层入口返回错误，尚未物化为本地实际 companion。parser、artifact、semantic-step 与 logical-memory 预算仍在各切片局部执行，尚未累计到一次 invocation；内部 wall-clock 中断也未实现。这些边界不能用无限预算、自定义 fallback 或指定态 expected companion 冒充完成。
+完整调用入口现由 [invocation 与累计资源边界](invocation-resource-budget-v0.1.md) 承载：它在真实身份足以绑定规范结果时，将 `chk-digest-01` 的确定摘要矛盾物化为 `rejected`，将 `chk-resource-01` 的累计内部预算不足物化为 `incomplete`，并在十类 check 与编码前执行 wall-clock 门禁。局部 encoder 仍只编码调用方交付的既有 `Result`，不会自行读取 bundle 或建立第二套聚合 / 预算路径。
 
 本切片不实现产品 CLI，不构建、验收或发布 checker binary / `checker.artifact`，不执行 solver、Node、生产 compiler 或 adapter，不增加 kernel / certificate 能力，不检查 minimality，也不产生六平台运行证据。

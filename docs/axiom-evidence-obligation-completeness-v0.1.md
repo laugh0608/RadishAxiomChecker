@@ -42,7 +42,7 @@ benchmark profile 另外生成：
 
 ## 锁定场景与负例
 
-- 28 个 bundle 中，`chk-digest-01`、`chk-resource-01` 继续在前置 digest / resource 层失败关闭，`chk-bundle-01` 保留缺失的非主体 proof artifact 并进入结果层；
+- 28 个 bundle 中，局部 obligation API 不接收 `chk-digest-01` / `chk-resource-01`；完整 invocation 在身份可绑定时分别形成 `rejected` / `incomplete`，`chk-bundle-01` 保留缺失的非主体 proof artifact 并进入结果层；
 - 26 个身份有效 Evidence 中，25 个 definition / ID 集合精确匹配；
 - `chk-obligation-01` 保持结构和文档身份有效，但因缺少一个规范 `numeric-range` 义务而得到 `obligation-mismatch`；
 - 局部负例覆盖缺失、多余、expectation、path、anchor、同 anchor 冲突 expectation、非规范 obligation 顺序和重复遍历稳定性。

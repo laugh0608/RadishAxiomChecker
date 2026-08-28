@@ -49,7 +49,7 @@ response 只接受一个精确 status frame：`unsat\n`、`sat\n` 或 `unknown\n
 
 ## 锁定语料结果
 
-28 个导入场景中，digest / resource 两个场景继续在前置层拒绝，`chk-bundle-01` 保留缺失 proof artifact 并进入 `incomplete` 结果层，`chk-obligation-01` 继续在 obligation completeness 拒绝；其余 24 个完整链路场景完成 proof support 审计：
+28 个导入场景中，局部 proof API 仍不接收 digest / resource 两个前置场景；完整 invocation 将它们分别物化为 `rejected` / `incomplete`。`chk-bundle-01` 保留缺失 proof artifact 并进入 `incomplete` 结果层，`chk-obligation-01` 继续在 obligation completeness 拒绝；其余 24 个完整链路场景完成 proof support 审计：
 
 - 共 213 项 producer `proved` claim；
 - 148 项 `kernel-replay` 全部因没有可检查 proof material 而失败关闭；
@@ -61,7 +61,7 @@ response 只接受一个精确 status frame：`unsat\n`、`sat\n` 或 `unknown\n
 
 ## 资源与停止线
 
-每个唯一 proof / tool artifact 的原始字节计入确定性逻辑内存和 semantic-step 预算，单 artifact 继续受 request `artifact-bytes` / JSON 限制；摘要在解析前重算。`wall-clock` 的 checker 内部累计中断仍未实现，边界与仓库其他切片一致。
+每个唯一 proof / tool artifact 的原始字节计入确定性逻辑内存和 semantic-step 预算，单 artifact 继续受 request `artifact-bytes` / JSON 限制；摘要在解析前重算。完整 invocation 将这些消费并入同一账本，并在 check 前后、semantic step 边界与编码前执行内部 `wall-clock` 门禁。
 
 本方法不执行 cvc5、Node.js、生产 compiler 或 adapter，不解释 SMT term，不重放 kernel rule，不检查 certificate，不证明 query theorem 与独立 obligation 等价，也不重算 Evidence conclusion。调用方必须继续进入 [production conclusion 确定性重算](axiom-evidence-conclusion-v0.1.md)、[Independent Check 内存结果聚合](independent-result-aggregation-v0.1.md) 与 [canonical companion codec](canonical-companion-v0.1.md)，不能用 proof audit 成功或 producer `satisfied` 跳过后续层；本方法自身不生成 companion，仓库仍没有实际 checker binary、`checker.artifact` 或产品 CLI。
 

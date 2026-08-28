@@ -6,6 +6,7 @@ import (
 	"radishaxiom.dev/independent-checker-go/internal/axiomir"
 	"radishaxiom.dev/independent-checker-go/internal/protocol"
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
+	"radishaxiom.dev/independent-checker-go/internal/resourcebudget"
 )
 
 const (
@@ -26,6 +27,7 @@ const (
 type ConclusionLimits struct {
 	MaxLogicalBytes  uint64
 	MaxSemanticSteps uint64
+	Ledger           *resourcebudget.Ledger
 }
 
 // ConclusionReference distinguishes obligation and execution domains even
@@ -54,6 +56,9 @@ type conclusionBudget struct {
 // remaining trust stay separate and cannot be hidden by a satisfied producer
 // conclusion.
 func (document Document) VerifyConclusion(limits ConclusionLimits) (ConclusionCheck, error) {
+	if limits.Ledger != nil {
+		defer limits.Ledger.ReleaseLogical("conclusion-recompute")
+	}
 	computed, err := recomputeConclusion(nil, document.obligations, document.results, document.executions, limits)
 	if err != nil {
 		return ConclusionCheck{}, err
@@ -249,6 +254,14 @@ func (budget *conclusionBudget) charge(logicalBytes, steps uint64) error {
 	}
 	budget.logicalBytes += logicalBytes
 	budget.steps += steps
+	if budget.limits.Ledger != nil {
+		if err := budget.limits.Ledger.ChargeSemanticSteps(steps); err != nil {
+			return err
+		}
+		if err := budget.limits.Ledger.AcquireLogical("conclusion-recompute", budget.logicalBytes); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

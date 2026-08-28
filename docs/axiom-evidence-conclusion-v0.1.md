@@ -52,7 +52,7 @@ production `satisfied` 只说明 producer 的 obligation 五态满足 Evidence v
 
 ## 资源与停止线
 
-obligation 遍历、ref 构造与必需 execution 核对受 request `working-memory` 与 `semantic-steps` 预算约束；零预算或超限以 `resource-limit` 失败关闭。该计数只覆盖本方法，结果层现在可以把明确的局部资源错误物化为 `incomplete`，但完整跨阶段累计资源与 `wall-clock` 内部中断仍属于后续切片。
+obligation 遍历、ref 构造与必需 execution 核对受 request `working-memory` 与 `semantic-steps` 预算约束；零预算或超限以 `resource-limit` 失败关闭。局部调用的计数仍只覆盖本方法；完整调用通过 [invocation 累计账本](invocation-resource-budget-v0.1.md) 将其并入跨阶段 semantic / logical memory 与内部 `wall-clock`，并在身份可绑定时形成 `incomplete`。
 
 本方法本身不检查 counterexample minimality，不执行 cvc5、Node.js、生产 compiler 或 adapter，不重放 kernel rule，不检查 certificate，不把 backend attestation 升级为独立 proof，也不修改 Axiom Evidence / Independent Check Contract 公共格式。完整 assurance policy、remaining trust / missing artifact 与四态由后续 [结果层](independent-result-aggregation-v0.1.md) 显式消费，再由 [canonical companion codec](canonical-companion-v0.1.md) 编码已经形成的结果；本方法自身不生成 checker binary、`checker.artifact`、CLI 或 companion。
 

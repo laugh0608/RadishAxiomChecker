@@ -7,6 +7,7 @@ import (
 
 	"radishaxiom.dev/independent-checker-go/internal/protocol"
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
+	"radishaxiom.dev/independent-checker-go/internal/resourcebudget"
 )
 
 // ExecutionLimits binds finite IR interpretation to explicit deterministic
@@ -14,6 +15,8 @@ import (
 type ExecutionLimits struct {
 	MaxLogicalBytes  uint64
 	MaxSemanticSteps uint64
+	Ledger           *resourcebudget.Ledger
+	Owner            string
 }
 
 // ExecutionFailure is an observed semantic failure of one well-formed node.
@@ -58,7 +61,7 @@ func (document Document) Execute(world ConcreteWorld, limits ExecutionLimits) (P
 	if !check.WellFormed {
 		return ProgramExecution{}, rejection.New(rejection.ConcreteCheckMismatch, "IR execution requires a complete WF input world")
 	}
-	pre, err := document.EvaluateAssumes(world, limits.MaxSemanticSteps)
+	pre, err := document.EvaluateAssumesWithLimits(world, limits)
 	if err != nil {
 		return ProgramExecution{}, err
 	}
@@ -74,11 +77,23 @@ func (document Document) Execute(world ConcreteWorld, limits ExecutionLimits) (P
 	if err != nil {
 		return ProgramExecution{}, err
 	}
-	evaluator := concreteEvaluator{document: document, input: copyConcreteWorld(world), maxSteps: limits.MaxSemanticSteps}
+	evaluator := concreteEvaluator{
+		document: document, input: copyConcreteWorld(world),
+		maxSteps: limits.MaxSemanticSteps, ledger: limits.Ledger,
+	}
 	nodeTables := make(map[protocol.Digest]ConcreteTable, len(order))
 	logicalBytes := concreteWorldLogicalBytes(world)
 	if limits.MaxLogicalBytes == 0 || logicalBytes > limits.MaxLogicalBytes {
 		return ProgramExecution{}, rejection.New(rejection.ResourceLimit, "IR execution input exceeds its logical-memory limit")
+	}
+	owner := limits.Owner
+	if owner == "" {
+		owner = "axiom-ir-execution"
+	}
+	if limits.Ledger != nil {
+		if err := limits.Ledger.AcquireLogical(owner, logicalBytes); err != nil {
+			return ProgramExecution{}, err
+		}
 	}
 	for _, id := range order {
 		if err := evaluator.step(); err != nil {
@@ -99,6 +114,11 @@ func (document Document) Execute(world ConcreteWorld, limits ExecutionLimits) (P
 		logicalBytes = saturatingAdd(logicalBytes, concreteTableLogicalBytes(table))
 		if logicalBytes > limits.MaxLogicalBytes {
 			return ProgramExecution{}, rejection.New(rejection.ResourceLimit, "IR execution exceeds its logical-memory limit")
+		}
+		if limits.Ledger != nil {
+			if err := limits.Ledger.AcquireLogical(owner, logicalBytes); err != nil {
+				return ProgramExecution{}, err
+			}
 		}
 	}
 
@@ -368,6 +388,17 @@ func (document Document) EvaluateGuarantee(
 	output ConcreteWorld,
 	maxSteps uint64,
 ) (bool, error) {
+	return document.EvaluateGuaranteeWithLimits(
+		id, input, output, ExecutionLimits{MaxSemanticSteps: maxSteps},
+	)
+}
+
+func (document Document) EvaluateGuaranteeWithLimits(
+	id protocol.Digest,
+	input ConcreteWorld,
+	output ConcreteWorld,
+	limits ExecutionLimits,
+) (bool, error) {
 	contract, exists := document.contracts[id]
 	if !exists || contract.kind != "formula" || contract.role != "guarantee" {
 		return false, rejection.New(rejection.ConcreteCheckMismatch, "target guarantee contract is unavailable")
@@ -376,7 +407,10 @@ func (document Document) EvaluateGuarantee(
 	if err != nil {
 		return false, err
 	}
-	evaluator := concreteEvaluator{document: document, input: input, output: output, maxSteps: maxSteps}
+	evaluator := concreteEvaluator{
+		document: document, input: input, output: output,
+		maxSteps: limits.MaxSemanticSteps, ledger: limits.Ledger,
+	}
 	value, err := evaluator.evaluate(fields["expression"], nil)
 	if err != nil {
 		return false, err

@@ -47,7 +47,7 @@ Evidence parser 继续严格解析原有格式，但不再丢弃已经验证过�
 
 ## 资源、验证与停止线
 
-解释器按 expression、node、row、join scan 与 aggregate term 消费 `semantic-steps`；input world 与 retained node table 使用确定性 logical-byte 上界并受 `working-memory` 限制。当前仍不是 Go heap 精确计量，`wall-clock`、跨阶段累计预算、内部 `incomplete` result 和外层进程限制尚未形成。
+解释器按 expression、node、row、join scan 与 aggregate term 消费 `semantic-steps`；input world 与 retained node table 使用确定性 logical-byte 上界并受 `working-memory` 限制，仍不是 Go heap 精确计量。完整调用通过 [invocation 累计账本](invocation-resource-budget-v0.1.md) 合并这些事件和内部 wall-clock，并将可绑定的资源不足物化为 `incomplete`；外层进程限制继续独立。
 
 导入的 24 个前置完整场景全部进入该入口：8 个 proof failure 被独立确认，3 个 host / output entry 被显式交给独立 output comparison 入口，其余没有本方法目标。正向执行覆盖四题全部 checked input artifact；负例覆盖 node / predecessor 绑定、projection、join 非唯一、group aggregate、数值范围、trace、observed、required key、paired public input、目标未违反、semantic step 与 logical memory。
 

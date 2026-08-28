@@ -6,6 +6,7 @@ import (
 	"radishaxiom.dev/independent-checker-go/internal/axiomir"
 	"radishaxiom.dev/independent-checker-go/internal/protocol"
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
+	"radishaxiom.dev/independent-checker-go/internal/resourcebudget"
 	"radishaxiom.dev/independent-checker-go/internal/strictjson"
 )
 
@@ -16,6 +17,7 @@ type ConcreteDataLimits struct {
 	JSON             strictjson.Limits
 	MaxLogicalBytes  uint64
 	MaxSemanticSteps uint64
+	Ledger           *resourcebudget.Ledger
 }
 
 type ConcreteInputLimits = ConcreteDataLimits
@@ -111,10 +113,19 @@ func (document Document) VerifyConcreteInputs(
 		if limits.MaxLogicalBytes == 0 || input.LogicalBytes() > limits.MaxLogicalBytes {
 			return ConcreteInputCheck{}, rejection.New(rejection.ResourceLimit, "concrete input exceeds its logical-memory limit")
 		}
+		owner := "concrete-input:" + artifact.String()
+		if limits.Ledger != nil {
+			if err := limits.Ledger.AcquireLogical(owner, input.LogicalBytes()); err != nil {
+				return ConcreteInputCheck{}, err
+			}
+			defer limits.Ledger.ReleaseLogical(owner)
+		}
 		worldCheck := ir.CheckCompleteInputWorld(input.World)
 		preSatisfied := false
 		if worldCheck.WellFormed {
-			evaluation, err := ir.EvaluateAssumes(input.World, limits.MaxSemanticSteps)
+			evaluation, err := ir.EvaluateAssumesWithLimits(input.World, axiomir.ExecutionLimits{
+				MaxSemanticSteps: limits.MaxSemanticSteps, Ledger: limits.Ledger,
+			})
 			if err != nil {
 				return ConcreteInputCheck{}, err
 			}

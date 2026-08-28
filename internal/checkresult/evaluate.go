@@ -9,6 +9,7 @@ import (
 	"radishaxiom.dev/independent-checker-go/internal/bundle"
 	"radishaxiom.dev/independent-checker-go/internal/protocol"
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
+	"radishaxiom.dev/independent-checker-go/internal/resourcebudget"
 	"radishaxiom.dev/independent-checker-go/internal/strictjson"
 )
 
@@ -27,6 +28,14 @@ type Evaluation struct {
 // already been established by bundle.Verify. It forms only an in-memory result;
 // it does not encode a companion document or claim a checker binary identity.
 func EvaluateVerifiedBundle(verified bundle.Verified, runtimeBoundary IdentityBoundary) (Evaluation, error) {
+	return evaluateVerifiedBundle(verified, runtimeBoundary, nil)
+}
+
+func evaluateVerifiedBundle(
+	verified bundle.Verified,
+	runtimeBoundary IdentityBoundary,
+	ledger *resourcebudget.Ledger,
+) (Evaluation, error) {
 	evidenceArtifact, ok := uniqueArtifact(verified.Manifest, "axiom-evidence", "0.1")
 	if !ok {
 		return Evaluation{}, fmt.Errorf("verified bundle does not contain one Axiom Evidence v0.1 artifact")
@@ -39,7 +48,7 @@ func EvaluateVerifiedBundle(verified bundle.Verified, runtimeBoundary IdentityBo
 	if err != nil {
 		return Evaluation{}, fmt.Errorf("Evidence bytes are unavailable for result-layer evaluation: %w", err)
 	}
-	document, err := axiomevidence.ParseStructure(evidenceBytes, jsonLimits(verified.Request))
+	document, err := axiomevidence.ParseStructure(evidenceBytes, jsonLimits(verified.Request, ledger))
 	if err != nil {
 		return Evaluation{}, fmt.Errorf("Evidence did not enter the in-memory result layer: %w", err)
 	}
@@ -47,7 +56,7 @@ func EvaluateVerifiedBundle(verified bundle.Verified, runtimeBoundary IdentityBo
 	if err != nil {
 		return Evaluation{}, fmt.Errorf("IR bytes are unavailable for result-layer evaluation: %w", err)
 	}
-	ir, err := axiomir.ParseStructure(irBytes, jsonLimits(verified.Request))
+	ir, err := axiomir.ParseStructure(irBytes, jsonLimits(verified.Request, ledger))
 	if err != nil {
 		return Evaluation{}, fmt.Errorf("IR did not enter the in-memory result layer: %w", err)
 	}
@@ -61,6 +70,11 @@ func EvaluateVerifiedBundle(verified bundle.Verified, runtimeBoundary IdentityBo
 	}
 
 	checks := make([]Check, 0, len(requiredCheckKinds))
+	conclusion := axiomevidence.ConclusionCheck{}
+	proof := axiomevidence.ProofSupportCheck{}
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
 	strictCheck, err := NewCheck(CheckStrictParse, CheckPassed, []string{"noncanonical-json"}, []Ref{
 		{Kind: RefArtifact, ID: document.ContentDigest},
 	})
@@ -68,7 +82,13 @@ func EvaluateVerifiedBundle(verified bundle.Verified, runtimeBoundary IdentityBo
 		return Evaluation{}, err
 	}
 	checks = append(checks, strictCheck)
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
 
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
 	identityOutcome := CheckPassed
 	identityCode := "manifest-coverage"
 	identityRefs := []Ref{
@@ -89,7 +109,13 @@ func EvaluateVerifiedBundle(verified bundle.Verified, runtimeBoundary IdentityBo
 		return Evaluation{}, err
 	}
 	checks = append(checks, identityCheck)
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
 
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
 	subjectErr := document.VerifyIRSubject(ir.ContentDigest, ir.DomainDigest)
 	subjectCheck, err := checkFromError(
 		CheckSubject, "subject-mismatch", []Ref{{Kind: RefArtifact, ID: ir.ContentDigest}}, subjectErr,
@@ -98,8 +124,14 @@ func EvaluateVerifiedBundle(verified bundle.Verified, runtimeBoundary IdentityBo
 		return Evaluation{}, err
 	}
 	checks = append(checks, subjectCheck)
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
 
-	obligationErr := document.VerifyObligationCompleteness(ir)
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
+	obligationErr := document.VerifyObligationCompletenessWithLedger(ir, ledger)
 	obligationCheck, err := checkFromError(
 		CheckObligation, "obligation-mismatch", []Ref{{Kind: RefArtifact, ID: document.ContentDigest}}, obligationErr,
 	)
@@ -107,9 +139,15 @@ func EvaluateVerifiedBundle(verified bundle.Verified, runtimeBoundary IdentityBo
 		return Evaluation{}, err
 	}
 	checks = append(checks, obligationCheck)
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
 
 	trust := trustInventory(document)
-	stateErr := document.VerifyStateSupport()
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
+	stateErr := document.VerifyStateSupportWithLedger(ledger)
 	stateOutcome := CheckPassed
 	stateCode := "invalid-state-support"
 	stateRefs := []Ref{{Kind: RefArtifact, ID: document.ContentDigest}}
@@ -132,10 +170,16 @@ func EvaluateVerifiedBundle(verified bundle.Verified, runtimeBoundary IdentityBo
 		return Evaluation{}, err
 	}
 	checks = append(checks, stateCheck)
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
 
-	counterexampleErr := document.VerifyCounterexampleWorlds(ir)
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
+	counterexampleErr := document.VerifyCounterexampleWorldsWithLedger(ir, ledger)
 	if counterexampleErr == nil {
-		_, counterexampleErr = document.VerifyCounterexampleTargets(ir, executionLimits(verified.Request))
+		_, counterexampleErr = document.VerifyCounterexampleTargets(ir, executionLimits(verified.Request, ledger))
 	}
 	counterexampleCheck, err := checkFromError(
 		CheckCounterexampleReplay, "counterexample-invalid",
@@ -145,10 +189,16 @@ func EvaluateVerifiedBundle(verified bundle.Verified, runtimeBoundary IdentityBo
 		return Evaluation{}, err
 	}
 	checks = append(checks, counterexampleCheck)
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
 
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
 	concreteRefs := make([]Ref, 0)
 	inputCheck, concreteErr := document.VerifyConcreteInputs(
-		ir, verified.ReadArtifact, concreteLimits(verified.Request),
+		ir, verified.ReadArtifact, concreteLimits(verified.Request, ledger),
 	)
 	if concreteErr == nil {
 		for _, artifact := range inputCheck.Artifacts {
@@ -158,7 +208,7 @@ func EvaluateVerifiedBundle(verified bundle.Verified, runtimeBoundary IdentityBo
 	outputCheck := axiomevidence.ConcreteOutputCheck{}
 	if concreteErr == nil {
 		outputCheck, concreteErr = document.VerifyConcreteOutputs(
-			ir, verified.ReadArtifact, concreteLimits(verified.Request),
+			ir, verified.ReadArtifact, concreteLimits(verified.Request, ledger),
 		)
 		for _, artifact := range outputCheck.Artifacts {
 			concreteRefs = append(concreteRefs, Ref{Kind: RefArtifact, ID: artifact})
@@ -178,18 +228,14 @@ func EvaluateVerifiedBundle(verified bundle.Verified, runtimeBoundary IdentityBo
 		return Evaluation{}, err
 	}
 	checks = append(checks, concreteCheck)
-
-	proof, proofErr := document.InspectProofSupports(
-		verified.Request.AssurancePolicy, verified.ReadArtifact, concreteLimits(verified.Request),
-	)
-	conclusion, conclusionErr := document.VerifyConclusion(conclusionLimits(verified.Request))
-
-	proofCheck, err := materializeProofCheck(document.ContentDigest, verified.Request.AssurancePolicy, proof, proofErr, conclusion)
-	if err != nil {
-		return Evaluation{}, err
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
 	}
-	checks = append(checks, proofCheck)
 
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
+	conclusion, conclusionErr := document.VerifyConclusion(conclusionLimits(verified.Request, ledger))
 	conclusionRefs := make([]Ref, 0, len(conclusion.Refs))
 	for _, ref := range conclusion.Refs {
 		kind := RefObligation
@@ -208,7 +254,28 @@ func EvaluateVerifiedBundle(verified bundle.Verified, runtimeBoundary IdentityBo
 		return Evaluation{}, err
 	}
 	checks = append(checks, conclusionCheck)
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
 
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
+	proof, proofErr := document.InspectProofSupports(
+		verified.Request.AssurancePolicy, verified.ReadArtifact, concreteLimits(verified.Request, ledger),
+	)
+	proofCheck, err := materializeProofCheck(document.ContentDigest, verified.Request.AssurancePolicy, proof, proofErr, conclusion)
+	if err != nil {
+		return Evaluation{}, err
+	}
+	checks = append(checks, proofCheck)
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
+
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
 	isolationCheck, err := NewCheck(
 		CheckIsolation, CheckPassed, []string{"isolation-boundary-violation"},
 		[]Ref{{Kind: RefArtifact, ID: runtimeBoundary.Checker.Source}},
@@ -217,7 +284,59 @@ func EvaluateVerifiedBundle(verified bundle.Verified, runtimeBoundary IdentityBo
 		return Evaluation{}, err
 	}
 	checks = append(checks, isolationCheck)
+	if err := invocationCheckpoint(ledger); err != nil {
+		return materializeResourceEvaluation(verified, boundary, document, checks, conclusion, proof)
+	}
 
+	return aggregateEvaluation(verified, boundary, document, checks, conclusion, proof)
+}
+
+func invocationCheckpoint(ledger *resourcebudget.Ledger) error {
+	if ledger == nil {
+		return nil
+	}
+	return ledger.Checkpoint()
+}
+
+func materializeResourceEvaluation(
+	verified bundle.Verified,
+	boundary IdentityBoundary,
+	document axiomevidence.Document,
+	checks []Check,
+	conclusion axiomevidence.ConclusionCheck,
+	proof axiomevidence.ProofSupportCheck,
+) (Evaluation, error) {
+	incomplete, err := NewCheck(
+		CheckIsolation, CheckIncomplete, []string{"tcb-incomplete"},
+		[]Ref{{Kind: RefArtifact, ID: boundary.Checker.Source}},
+	)
+	if err != nil {
+		return Evaluation{}, err
+	}
+	materialized := append([]Check(nil), checks...)
+	replaced := false
+	for index := range materialized {
+		if materialized[index].Definition.Kind == CheckIsolation {
+			materialized[index] = incomplete
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		materialized = append(materialized, incomplete)
+	}
+	return aggregateEvaluation(verified, boundary, document, materialized, conclusion, proof)
+}
+
+func aggregateEvaluation(
+	verified bundle.Verified,
+	boundary IdentityBoundary,
+	document axiomevidence.Document,
+	checks []Check,
+	conclusion axiomevidence.ConclusionCheck,
+	proof axiomevidence.ProofSupportCheck,
+) (Evaluation, error) {
+	trust := trustInventory(document)
 	result, err := Aggregate(Input{
 		AllowedTrustCategories: verified.Request.AssurancePolicy.AllowedTrustCategories,
 		Boundary:               boundary,
@@ -350,30 +469,56 @@ func uniqueRefs(input []Ref) []Ref {
 	return unique
 }
 
-func jsonLimits(request protocol.Request) strictjson.Limits {
+func jsonLimits(request protocol.Request, counters ...strictjson.Counter) strictjson.Limits {
 	artifactBytes, _ := request.Limit("artifact-bytes")
 	depth, _ := request.Limit("json-depth")
 	items, _ := request.Limit("collection-items")
 	steps, _ := request.Limit("semantic-steps")
-	return strictjson.Limits{MaxBytes: artifactBytes, MaxDepth: depth, MaxItems: items, MaxSteps: steps}
+	limits := strictjson.Limits{MaxBytes: artifactBytes, MaxDepth: depth, MaxItems: items, MaxSteps: steps}
+	if len(counters) != 0 {
+		limits.Counter = counters[0]
+	}
+	return limits
 }
 
-func concreteLimits(request protocol.Request) axiomevidence.ConcreteDataLimits {
+func concreteLimits(
+	request protocol.Request,
+	ledgers ...*resourcebudget.Ledger,
+) axiomevidence.ConcreteDataLimits {
 	workingMemory, _ := request.Limit("working-memory")
 	semanticSteps, _ := request.Limit("semantic-steps")
-	return axiomevidence.ConcreteDataLimits{
+	limits := axiomevidence.ConcreteDataLimits{
 		JSON: jsonLimits(request), MaxLogicalBytes: workingMemory, MaxSemanticSteps: semanticSteps,
 	}
+	if len(ledgers) != 0 {
+		limits.Ledger = ledgers[0]
+		limits.JSON.Counter = ledgers[0]
+	}
+	return limits
 }
 
-func executionLimits(request protocol.Request) axiomir.ExecutionLimits {
+func executionLimits(
+	request protocol.Request,
+	ledgers ...*resourcebudget.Ledger,
+) axiomir.ExecutionLimits {
 	workingMemory, _ := request.Limit("working-memory")
 	semanticSteps, _ := request.Limit("semantic-steps")
-	return axiomir.ExecutionLimits{MaxLogicalBytes: workingMemory, MaxSemanticSteps: semanticSteps}
+	limits := axiomir.ExecutionLimits{MaxLogicalBytes: workingMemory, MaxSemanticSteps: semanticSteps}
+	if len(ledgers) != 0 {
+		limits.Ledger = ledgers[0]
+	}
+	return limits
 }
 
-func conclusionLimits(request protocol.Request) axiomevidence.ConclusionLimits {
+func conclusionLimits(
+	request protocol.Request,
+	ledgers ...*resourcebudget.Ledger,
+) axiomevidence.ConclusionLimits {
 	workingMemory, _ := request.Limit("working-memory")
 	semanticSteps, _ := request.Limit("semantic-steps")
-	return axiomevidence.ConclusionLimits{MaxLogicalBytes: workingMemory, MaxSemanticSteps: semanticSteps}
+	limits := axiomevidence.ConclusionLimits{MaxLogicalBytes: workingMemory, MaxSemanticSteps: semanticSteps}
+	if len(ledgers) != 0 {
+		limits.Ledger = ledgers[0]
+	}
+	return limits
 }

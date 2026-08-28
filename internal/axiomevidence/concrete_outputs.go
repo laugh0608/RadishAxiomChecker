@@ -150,6 +150,14 @@ func (document Document) VerifyConcreteOutputs(
 	outputArtifacts := make(map[protocol.Digest]struct{})
 	inputCache := make(map[protocol.Digest]axiomir.BenchmarkInput)
 	outputCache := make(map[protocol.Digest]axiomir.BenchmarkOutput)
+	owned := make([]string, 0)
+	if limits.Ledger != nil {
+		defer func() {
+			for _, owner := range owned {
+				limits.Ledger.ReleaseLogical(owner)
+			}
+		}()
+	}
 	readBytes := func(id protocol.Digest) ([]byte, error) {
 		definition, exists := document.artifacts[id]
 		if !exists || definition.format != "axiom-benchmark-data" || definition.formatVersion != "0.1" {
@@ -182,6 +190,13 @@ func (document Document) VerifyConcreteOutputs(
 		if limits.MaxLogicalBytes == 0 || decoded.LogicalBytes() > limits.MaxLogicalBytes {
 			return axiomir.BenchmarkInput{}, rejection.New(rejection.ResourceLimit, "concrete host input exceeds its logical-memory limit")
 		}
+		if limits.Ledger != nil {
+			owner := "concrete-output-input:" + id.String()
+			if err := limits.Ledger.AcquireLogical(owner, decoded.LogicalBytes()); err != nil {
+				return axiomir.BenchmarkInput{}, err
+			}
+			owned = append(owned, owner)
+		}
 		inputCache[id] = decoded
 		return decoded, nil
 	}
@@ -199,6 +214,13 @@ func (document Document) VerifyConcreteOutputs(
 		}
 		if limits.MaxLogicalBytes == 0 || decoded.LogicalBytes() > limits.MaxLogicalBytes {
 			return axiomir.BenchmarkOutput{}, rejection.New(rejection.ResourceLimit, "concrete output exceeds its logical-memory limit")
+		}
+		if limits.Ledger != nil {
+			owner := "concrete-output-output:" + id.String()
+			if err := limits.Ledger.AcquireLogical(owner, decoded.LogicalBytes()); err != nil {
+				return axiomir.BenchmarkOutput{}, err
+			}
+			owned = append(owned, owner)
 		}
 		if check := ir.CheckCompleteOutputWorld(decoded.World); !check.WellFormed {
 			return axiomir.BenchmarkOutput{}, concreteMismatch("concrete output is not a complete WF IR output world")
@@ -228,15 +250,20 @@ func (document Document) VerifyConcreteOutputs(
 		if err != nil {
 			return ConcreteOutputCheck{}, err
 		}
+		executionOwner := "concrete-output-execution:" + id.String()
 		semantic, err := ir.Execute(input.World, axiomir.ExecutionLimits{
 			MaxLogicalBytes:  limits.MaxLogicalBytes,
 			MaxSemanticSteps: limits.MaxSemanticSteps,
+			Ledger:           limits.Ledger, Owner: executionOwner,
 		})
 		if err != nil {
 			if code, ok := rejection.CodeOf(err); ok && code == rejection.ResourceLimit {
 				return ConcreteOutputCheck{}, err
 			}
 			return ConcreteOutputCheck{}, concreteMismatch("host input could not be independently executed to a concrete output")
+		}
+		if limits.Ledger != nil {
+			owned = append(owned, executionOwner)
 		}
 		observation := hostObservation{
 			inputArtifact: inputArtifact, outputArtifact: outputArtifact,

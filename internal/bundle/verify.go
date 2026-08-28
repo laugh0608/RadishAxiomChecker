@@ -9,6 +9,7 @@ import (
 
 	"radishaxiom.dev/independent-checker-go/internal/protocol"
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
+	"radishaxiom.dev/independent-checker-go/internal/resourcebudget"
 	"radishaxiom.dev/independent-checker-go/internal/strictjson"
 )
 
@@ -39,10 +40,33 @@ type Verified struct {
 	MissingArtifacts []protocol.Digest
 	root             string
 	artifactLimit    uint64
+	ledger           *resourcebudget.Ledger
+	identityFinding  error
 }
 
 // Verify parses and verifies a read-only bundle without mutating it.
 func Verify(root string) (Verified, error) {
+	verified, err := verify(root, nil, false)
+	if err != nil {
+		return Verified{}, err
+	}
+	if verified.identityFinding != nil {
+		return Verified{}, verified.identityFinding
+	}
+	return verified, nil
+}
+
+// InspectInvocation retains a deterministic identity finding after a valid
+// request and manifest have formed. This lets the invocation layer materialize
+// a rejected result only when the necessary real identities are available.
+func InspectInvocation(root string, ledger *resourcebudget.Ledger) (Verified, error) {
+	if ledger == nil {
+		return Verified{}, rejection.New(rejection.ResourceLimit, "invocation resource ledger is unavailable")
+	}
+	return verify(root, ledger, true)
+}
+
+func verify(root string, ledger *resourcebudget.Ledger, invocation bool) (Verified, error) {
 	if err := verifyRoot(root); err != nil {
 		return Verified{}, err
 	}
@@ -54,9 +78,19 @@ func Verify(root string) (Verified, error) {
 	if err != nil {
 		return Verified{}, err
 	}
-	request, err := protocol.ParseRequest(requestBytes, requestEnvelopeLimits)
+	requestLimits := requestEnvelopeLimits
+	requestLimits.Counter = ledger
+	request, err := protocol.ParseRequest(requestBytes, requestLimits)
 	if err != nil {
 		return Verified{}, err
+	}
+	if ledger != nil {
+		if err := ledger.ChargeDigestBytes(uint64(len(requestBytes))); err != nil {
+			return Verified{}, err
+		}
+		if err := ledger.Configure(resourceLimits(request)); err != nil {
+			return Verified{}, err
+		}
 	}
 	requestDigest := digestBytes(requestBytes)
 
@@ -65,6 +99,11 @@ func Verify(root string) (Verified, error) {
 	manifestBytes, _, err := readRegular(filepath.Join(root, "manifest.jcs"), artifactLimit)
 	if err != nil {
 		return Verified{}, err
+	}
+	if ledger != nil {
+		if err := ledger.ChargeDigestBytes(uint64(len(manifestBytes))); err != nil {
+			return Verified{}, err
+		}
 	}
 	manifestDigest := digestBytes(manifestBytes)
 	if manifestDigest != request.BundleManifest {
@@ -75,6 +114,14 @@ func Verify(root string) (Verified, error) {
 		MaxDepth: minLimit(request, "json-depth", hardJSONDepth),
 		MaxItems: minLimit(request, "collection-items", hardCollectionItems),
 		MaxSteps: minLimit(request, "semantic-steps", hardSemanticSteps),
+		Counter:  ledger,
+	}
+	if invocation {
+		// Request limits are accumulated by ledger but are not exposed until
+		// Evidence identity can make an internal incomplete result well-formed.
+		manifestLimits.MaxDepth = hardJSONDepth
+		manifestLimits.MaxItems = hardCollectionItems
+		manifestLimits.MaxSteps = hardSemanticSteps
 	}
 	manifest, err := protocol.ParseManifest(manifestBytes, manifestLimits)
 	if err != nil {
@@ -83,7 +130,9 @@ func Verify(root string) (Verified, error) {
 	if err := verifyEvidenceBinding(request, manifest); err != nil {
 		return Verified{}, err
 	}
-	missingArtifacts, err := verifyBlobs(root, manifest, artifactLimit, bundleLimit)
+	missingArtifacts, identityFinding, err := verifyBlobs(
+		root, manifest, artifactLimit, bundleLimit, ledger, invocation,
+	)
 	if err != nil {
 		return Verified{}, err
 	}
@@ -95,7 +144,13 @@ func Verify(root string) (Verified, error) {
 		MissingArtifacts: missingArtifacts,
 		root:             absoluteRoot,
 		artifactLimit:    artifactLimit,
+		ledger:           ledger,
+		identityFinding:  identityFinding,
 	}, nil
+}
+
+func (verified Verified) IdentityFinding() error {
+	return verified.identityFinding
 }
 
 // ReadArtifact reopens one manifest-listed artifact from the verified bundle,
@@ -127,6 +182,11 @@ func (verified Verified) ReadArtifact(digest protocol.Digest) ([]byte, error) {
 	}
 	if length != artifact.ByteLength {
 		return nil, rejection.New(rejection.LengthMismatch, "artifact length differs from the verified manifest")
+	}
+	if verified.ledger != nil {
+		if err := verified.ledger.ChargeDigestBytes(uint64(len(data))); err != nil {
+			return nil, err
+		}
 	}
 	if digestBytes(data) != digest {
 		return nil, rejection.New(rejection.DigestMismatch, "artifact bytes changed after bundle verification")
@@ -230,46 +290,53 @@ func verifyBlobs(
 	manifest protocol.Manifest,
 	artifactLimit uint64,
 	bundleLimit uint64,
-) ([]protocol.Digest, error) {
+	ledger *resourcebudget.Ledger,
+	retainIdentityFinding bool,
+) ([]protocol.Digest, error, error) {
 	dir := filepath.Join(root, "blobs", "sha256")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, rejection.New(rejection.ArtifactMissing, "blob directory cannot be enumerated")
+		return nil, nil, rejection.New(rejection.ArtifactMissing, "blob directory cannot be enumerated")
 	}
 	expected := make(map[string]protocol.Artifact, len(manifest.Artifacts))
+	var total uint64
 	for _, artifact := range manifest.Artifacts {
 		expected[artifact.ContentDigest.BlobName()] = artifact
+		if artifact.ByteLength > artifactLimit {
+			return nil, nil, rejection.New(rejection.ResourceLimit, "blob exceeds artifact byte limit")
+		}
+		nextTotal, ok := addChecked(total, artifact.ByteLength)
+		if !ok || nextTotal > bundleLimit {
+			return nil, nil, rejection.New(rejection.ResourceLimit, "bundle exceeds bundle byte limit")
+		}
+		total = nextTotal
+		if ledger != nil {
+			if err := ledger.ChargeArtifact(artifact.ContentDigest.String(), artifact.ByteLength); err != nil {
+				return nil, nil, err
+			}
+		}
 	}
 	observed := make(map[string]struct{}, len(entries))
-	var total uint64
 	for _, entry := range entries {
 		name := entry.Name()
 		if !validBlobName(name) {
-			return nil, rejection.New(rejection.IsolationBoundaryViolation, "blob name is not a full lowercase SHA-256 digest")
+			return nil, nil, rejection.New(rejection.IsolationBoundaryViolation, "blob name is not a full lowercase SHA-256 digest")
 		}
 		artifact, listed := expected[name]
 		if !listed {
-			return nil, rejection.New(rejection.ManifestCoverage, "blob is not listed by the manifest")
+			return nil, nil, rejection.New(rejection.ManifestCoverage, "blob is not listed by the manifest")
 		}
 		path := filepath.Join(dir, name)
 		info, err := os.Lstat(path)
 		if err != nil {
-			return nil, rejection.New(rejection.ArtifactMissing, "listed blob is unavailable")
+			return nil, nil, rejection.New(rejection.ArtifactMissing, "listed blob is unavailable")
 		}
 		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-			return nil, rejection.New(rejection.IsolationBoundaryViolation, "blob must be an ordinary non-symlink file")
+			return nil, nil, rejection.New(rejection.IsolationBoundaryViolation, "blob must be an ordinary non-symlink file")
 		}
 		if info.Size() < 0 || uint64(info.Size()) != artifact.ByteLength {
-			return nil, rejection.New(rejection.LengthMismatch, "blob length differs from the manifest")
+			return nil, nil, rejection.New(rejection.LengthMismatch, "blob length differs from the manifest")
 		}
-		if artifact.ByteLength > artifactLimit {
-			return nil, rejection.New(rejection.ResourceLimit, "blob exceeds artifact byte limit")
-		}
-		nextTotal, ok := addChecked(total, artifact.ByteLength)
-		if !ok || nextTotal > bundleLimit {
-			return nil, rejection.New(rejection.ResourceLimit, "bundle exceeds bundle byte limit")
-		}
-		total = nextTotal
 		observed[name] = struct{}{}
 	}
 	missing := make([]protocol.Digest, 0)
@@ -279,22 +346,31 @@ func verifyBlobs(
 		}
 	}
 	sort.Slice(missing, func(i, j int) bool { return missing[i].String() < missing[j].String() })
+	var identityFinding error
 	for _, artifact := range manifest.Artifacts {
 		if _, ok := observed[artifact.ContentDigest.BlobName()]; !ok {
 			continue
 		}
-		actual, err := digestRegular(filepath.Join(dir, artifact.ContentDigest.BlobName()), artifact.ByteLength)
+		actual, err := digestRegular(
+			filepath.Join(dir, artifact.ContentDigest.BlobName()), artifact.ByteLength, ledger,
+		)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if actual != artifact.ContentDigest {
-			return nil, rejection.New(rejection.DigestMismatch, "blob SHA-256 differs from the manifest")
+			finding := rejection.New(rejection.DigestMismatch, "blob SHA-256 differs from the manifest")
+			if !retainIdentityFinding {
+				return nil, nil, finding
+			}
+			if identityFinding == nil {
+				identityFinding = finding
+			}
 		}
 	}
-	return missing, nil
+	return missing, identityFinding, nil
 }
 
-func digestRegular(path string, declared uint64) (protocol.Digest, error) {
+func digestRegular(path string, declared uint64, ledger *resourcebudget.Ledger) (protocol.Digest, error) {
 	var zero protocol.Digest
 	before, err := os.Lstat(path)
 	if err != nil || before.Mode()&os.ModeSymlink != 0 || !before.Mode().IsRegular() {
@@ -317,9 +393,27 @@ func digestRegular(path string, declared uint64) (protocol.Digest, error) {
 	if uint64(read) != declared {
 		return zero, rejection.New(rejection.LengthMismatch, "blob length changed while hashing")
 	}
+	if ledger != nil {
+		if err := ledger.ChargeDigestBytes(uint64(read)); err != nil {
+			return zero, err
+		}
+	}
 	var digest protocol.Digest
 	copy(digest[:], hash.Sum(nil))
 	return digest, nil
+}
+
+func resourceLimits(request protocol.Request) resourcebudget.Limits {
+	bundleBytes, _ := request.Limit("bundle-bytes")
+	items, _ := request.Limit("collection-items")
+	depth, _ := request.Limit("json-depth")
+	steps, _ := request.Limit("semantic-steps")
+	wallClock, _ := request.Limit("wall-clock")
+	workingMemory, _ := request.Limit("working-memory")
+	return resourcebudget.Limits{
+		BundleBytes: bundleBytes, CollectionItems: items, JSONDepth: depth,
+		SemanticSteps: steps, WallClockMillis: wallClock, WorkingMemory: workingMemory,
+	}
 }
 
 func digestBytes(data []byte) protocol.Digest {

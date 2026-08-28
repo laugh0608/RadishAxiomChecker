@@ -43,7 +43,7 @@ IR parser 保留 assume formula definition，而不只保留 ID。当前 12 份�
 
 ## 资源与停止线
 
-JSON parser 消费 request 的 artifact byte、depth、collection item 与 semantic step 边界；concrete model 另形成与 Go heap 实现无关的确定性逻辑字节计数，并受 `working-memory` 上限约束；assume evaluator 按 expression、row 与 lookup scan 累计 semantic step。`wall-clock`、跨阶段累计预算、内部 `incomplete` 结果和外层进程限制仍未形成。
+JSON parser 消费 request 的 artifact byte、depth、collection item 与 semantic step 边界；concrete model 另形成与 Go heap 实现无关的确定性逻辑字节计数，并受 `working-memory` 上限约束；assume evaluator 按 expression、row 与 lookup scan 累计 semantic step。局部入口仍保留这些方法级上限；完整调用通过 [invocation 累计账本](invocation-resource-budget-v0.1.md) 合并计数和内部 wall-clock，并将可绑定的资源不足物化为 `incomplete`，外层进程限制仍保持独立。
 
 本切片不执行 filter / map / lookup_join / group 等 transform node，不检查 guarantee，不比较 host output / golden output，不判断非输入 failed obligation 的目标违反、observed、trace、公开等价或 minimality，不验证 kernel rule、backend attestation 或 certificate，不重算 conclusion，也不生成独立四态 result。
 

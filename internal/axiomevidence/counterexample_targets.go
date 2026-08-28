@@ -36,6 +36,11 @@ func (document Document) VerifyCounterexampleTargets(
 	sortDigests(ids)
 	result := CounterexampleTargetCheck{}
 	for _, id := range ids {
+		if limits.Ledger != nil {
+			if err := limits.Ledger.ChargeSemanticSteps(1); err != nil {
+				return CounterexampleTargetCheck{}, err
+			}
+		}
 		definition := document.obligations[id]
 		obligationResult := document.results[id]
 		if obligationResult.kind != "failed" {

@@ -132,6 +132,9 @@ func (document Document) InspectProofSupports(
 		limits:   limits,
 		cache:    make(map[protocol.Digest][]byte),
 	}
+	if limits.Ledger != nil {
+		defer limits.Ledger.ReleaseLogical("proof-support")
+	}
 	executions := make(map[protocol.Digest]inspectedProofExecution)
 	remainingTrust := make(map[protocol.Digest]struct{})
 	for _, obligationID := range obligationIDs {
@@ -520,6 +523,14 @@ func (loader *proofArtifactLoader) load(id protocol.Digest) ([]byte, error) {
 	}
 	loader.logicalBytes += charge
 	loader.steps += charge
+	if loader.limits.Ledger != nil {
+		if err := loader.limits.Ledger.ChargeSemanticSteps(charge); err != nil {
+			return nil, err
+		}
+		if err := loader.limits.Ledger.AcquireLogical("proof-support", loader.logicalBytes); err != nil {
+			return nil, err
+		}
+	}
 	loader.cache[id] = data
 	return data, nil
 }

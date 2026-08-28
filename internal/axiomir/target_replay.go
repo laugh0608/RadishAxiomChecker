@@ -35,11 +35,15 @@ func (document Document) ReplayFailureTarget(
 		if len(worlds) != 1 || definition.Subject.Kind != "contract" {
 			return false, rejection.New(rejection.ConcreteCheckMismatch, "contract-guarantee target has the wrong witness shape")
 		}
+		limits.Owner = "counterexample:" + definition.Kind + ":" + definition.Subject.ID.String()
+		if limits.Ledger != nil {
+			defer limits.Ledger.ReleaseLogical(limits.Owner)
+		}
 		execution, err := document.Execute(worlds[0], limits)
 		if err != nil {
 			return false, err
 		}
-		truth, err := document.EvaluateGuarantee(definition.Subject.ID, worlds[0], execution.Outputs, limits.MaxSemanticSteps)
+		truth, err := document.EvaluateGuaranteeWithLimits(definition.Subject.ID, worlds[0], execution.Outputs, limits)
 		return !truth, err
 	case "noninterference":
 		if len(worlds) != 2 || definition.Subject.Kind != "contract" {
@@ -49,6 +53,10 @@ func (document Document) ReplayFailureTarget(
 	case "key-cardinality":
 		if len(worlds) != 1 || definition.Subject.Kind != "node" {
 			return false, rejection.New(rejection.ConcreteCheckMismatch, "key-cardinality target has the wrong witness shape")
+		}
+		limits.Owner = "counterexample:" + definition.Kind + ":" + definition.Subject.ID.String()
+		if limits.Ledger != nil {
+			defer limits.Ledger.ReleaseLogical(limits.Owner)
 		}
 		_, err := document.Execute(worlds[0], limits)
 		var failure *ExecutionFailure
@@ -63,6 +71,10 @@ func (document Document) ReplayFailureTarget(
 		if len(worlds) != 1 || definition.Subject.Kind != "field" {
 			return false, rejection.New(rejection.ConcreteCheckMismatch, "field-origin target has the wrong witness shape")
 		}
+		limits.Owner = "counterexample:" + definition.Kind + ":" + definition.Subject.ID.String()
+		if limits.Ledger != nil {
+			defer limits.Ledger.ReleaseLogical(limits.Owner)
+		}
 		execution, err := document.Execute(worlds[0], limits)
 		if err != nil {
 			return false, err
@@ -71,11 +83,15 @@ func (document Document) ReplayFailureTarget(
 		if err != nil || !missingOrigin {
 			return false, err
 		}
-		guaranteeFailed, err := document.anyGuaranteeFalse(worlds[0], execution.Outputs, limits.MaxSemanticSteps)
+		guaranteeFailed, err := document.anyGuaranteeFalse(worlds[0], execution.Outputs, limits)
 		return guaranteeFailed, err
 	case "row-coverage":
 		if len(worlds) != 1 || definition.Subject.Kind != "node" {
 			return false, rejection.New(rejection.ConcreteCheckMismatch, "row-coverage target has the wrong witness shape")
+		}
+		limits.Owner = "counterexample:" + definition.Kind + ":" + definition.Subject.ID.String()
+		if limits.Ledger != nil {
+			defer limits.Ledger.ReleaseLogical(limits.Owner)
 		}
 		execution, err := document.Execute(worlds[0], limits)
 		if err != nil {
@@ -85,11 +101,15 @@ func (document Document) ReplayFailureTarget(
 		if err != nil || !dropped {
 			return false, err
 		}
-		guaranteeFailed, err := document.anyGuaranteeFalse(worlds[0], execution.Outputs, limits.MaxSemanticSteps)
+		guaranteeFailed, err := document.anyGuaranteeFalse(worlds[0], execution.Outputs, limits)
 		return guaranteeFailed, err
 	case "group-conservation":
 		if len(worlds) != 1 || definition.Subject.Kind != "node" {
 			return false, rejection.New(rejection.ConcreteCheckMismatch, "group-conservation target has the wrong witness shape")
+		}
+		limits.Owner = "counterexample:" + definition.Kind + ":" + definition.Subject.ID.String()
+		if limits.Ledger != nil {
+			defer limits.Ledger.ReleaseLogical(limits.Owner)
 		}
 		execution, err := document.Execute(worlds[0], limits)
 		if err != nil {
@@ -99,14 +119,17 @@ func (document Document) ReplayFailureTarget(
 		if err != nil || !collapsed {
 			return false, err
 		}
-		guaranteeFailed, err := document.anyGuaranteeFalse(worlds[0], execution.Outputs, limits.MaxSemanticSteps)
+		guaranteeFailed, err := document.anyGuaranteeFalse(worlds[0], execution.Outputs, limits)
 		return guaranteeFailed, err
 	default:
 		return false, rejection.New(rejection.ConcreteCheckMismatch, "failed proof target kind is outside the locked replay profile")
 	}
 }
 
-func (document Document) anyGuaranteeFalse(input, output ConcreteWorld, maxSteps uint64) (bool, error) {
+func (document Document) anyGuaranteeFalse(
+	input, output ConcreteWorld,
+	limits ExecutionLimits,
+) (bool, error) {
 	ids := make([]protocol.Digest, 0)
 	for id, contract := range document.contracts {
 		if contract.kind == "formula" && contract.role == "guarantee" {
@@ -118,7 +141,7 @@ func (document Document) anyGuaranteeFalse(input, output ConcreteWorld, maxSteps
 		return false, rejection.New(rejection.ConcreteCheckMismatch, "locked target replay has no guarantee contract")
 	}
 	for _, id := range ids {
-		truth, err := document.EvaluateGuarantee(id, input, output, maxSteps)
+		truth, err := document.EvaluateGuaranteeWithLimits(id, input, output, limits)
 		if err != nil {
 			return false, err
 		}
@@ -154,8 +177,16 @@ func (document Document) replayNoninterference(
 	if !document.publicInputsEqual(leftInput, rightInput, inputs) {
 		return false, rejection.New(rejection.ConcreteCheckMismatch, "paired counterexample inputs are not publicly equivalent")
 	}
-	left, leftErr := document.Execute(leftInput, limits)
-	right, rightErr := document.Execute(rightInput, limits)
+	leftLimits := limits
+	leftLimits.Owner = "noninterference:left:" + contractID.String()
+	rightLimits := limits
+	rightLimits.Owner = "noninterference:right:" + contractID.String()
+	if limits.Ledger != nil {
+		defer limits.Ledger.ReleaseLogical(leftLimits.Owner)
+		defer limits.Ledger.ReleaseLogical(rightLimits.Owner)
+	}
+	left, leftErr := document.Execute(leftInput, leftLimits)
+	right, rightErr := document.Execute(rightInput, rightLimits)
 	leftFailure, err := retainedExecutionFailure(leftErr)
 	if err != nil {
 		return false, err

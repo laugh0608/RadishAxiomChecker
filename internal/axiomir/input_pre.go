@@ -5,6 +5,7 @@ import (
 
 	"radishaxiom.dev/independent-checker-go/internal/protocol"
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
+	"radishaxiom.dev/independent-checker-go/internal/resourcebudget"
 	"radishaxiom.dev/independent-checker-go/internal/strictjson"
 )
 
@@ -32,6 +33,7 @@ type concreteEvaluator struct {
 	output   ConcreteWorld
 	steps    uint64
 	maxSteps uint64
+	ledger   *resourcebudget.Ledger
 }
 
 // EvaluateAssumes evaluates the locked input-only assume subset independently
@@ -39,7 +41,17 @@ type concreteEvaluator struct {
 // De Bruijn bound records, fields, Bool connectives, exact equality, Int <=,
 // if, forall_rows, primary-key lookup, and match_option.
 func (document Document) EvaluateAssumes(world ConcreteWorld, maxSteps uint64) (AssumeEvaluation, error) {
-	evaluator := concreteEvaluator{document: document, input: world, maxSteps: maxSteps}
+	return document.EvaluateAssumesWithLimits(world, ExecutionLimits{MaxSemanticSteps: maxSteps})
+}
+
+func (document Document) EvaluateAssumesWithLimits(
+	world ConcreteWorld,
+	limits ExecutionLimits,
+) (AssumeEvaluation, error) {
+	evaluator := concreteEvaluator{
+		document: document, input: world,
+		maxSteps: limits.MaxSemanticSteps, ledger: limits.Ledger,
+	}
 	result := AssumeEvaluation{AllTrue: true}
 	for _, id := range document.assumeContracts {
 		contract, exists := document.contracts[id]
@@ -462,6 +474,11 @@ func (evaluator *concreteEvaluator) step() error {
 		return rejection.New(rejection.ResourceLimit, "concrete evaluation exceeds its semantic step limit")
 	}
 	evaluator.steps++
+	if evaluator.ledger != nil {
+		if err := evaluator.ledger.ChargeSemanticSteps(1); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

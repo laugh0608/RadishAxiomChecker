@@ -4,6 +4,7 @@ import (
 	"radishaxiom.dev/independent-checker-go/internal/axiomir"
 	"radishaxiom.dev/independent-checker-go/internal/protocol"
 	"radishaxiom.dev/independent-checker-go/internal/rejection"
+	"radishaxiom.dev/independent-checker-go/internal/resourcebudget"
 )
 
 // VerifyCounterexampleWorlds checks the declaration-level concrete-data
@@ -14,6 +15,13 @@ import (
 // intentionally expose a WF or Pre failure. This slice does not evaluate assume
 // expressions, execute the program, or confirm the target violation.
 func (d Document) VerifyCounterexampleWorlds(ir axiomir.Document) error {
+	return d.VerifyCounterexampleWorldsWithLedger(ir, nil)
+}
+
+func (d Document) VerifyCounterexampleWorldsWithLedger(
+	ir axiomir.Document,
+	ledger *resourcebudget.Ledger,
+) error {
 	if err := d.VerifyIRSubject(ir.ContentDigest, ir.DomainDigest); err != nil {
 		return err
 	}
@@ -25,6 +33,11 @@ func (d Document) VerifyCounterexampleWorlds(ir axiomir.Document) error {
 	}
 	sortDigests(obligationIDs)
 	for _, id := range obligationIDs {
+		if ledger != nil {
+			if err := ledger.ChargeSemanticSteps(1); err != nil {
+				return err
+			}
+		}
 		definition := d.obligations[id]
 		result := d.results[id]
 		if result.kind != "failed" {
@@ -47,6 +60,11 @@ func (d Document) VerifyCounterexampleWorlds(ir axiomir.Document) error {
 		}
 
 		for _, world := range counterexample.worlds {
+			if ledger != nil {
+				if err := ledger.ChargeSemanticSteps(1); err != nil {
+					return err
+				}
+			}
 			check := ir.CheckInputWorld(world)
 			if !check.Anchored {
 				return invalidCounterexample("counterexample world does not resolve to the IR input boundary")
