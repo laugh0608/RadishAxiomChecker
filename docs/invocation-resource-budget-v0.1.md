@@ -30,3 +30,5 @@ request 自己尚未解析时，严格 parser 只受实现硬上限保护；解�
 统一测试覆盖正常 `ax-b01-correct` 的十类完整检查与累计快照、`CHK-DIGEST-01` 的真实 `rejected`、`CHK-RESOURCE-01` 的真实 `incomplete`、`CHK-PROCESS-01` 的 `not-produced` failure、摘要矛盾与预算同时发生时的拒绝优先，以及 request 不可读、request 非规范、checker source 缺失、墙钟耗尽、编码前耗尽和结果截断。实际形成路径不读取 `expected-result.jcs` 决定结果或字节。
 
 本切片不实现产品 CLI，不构建、验收或发布 checker binary / `checker.artifact`，不实现 launcher 的 OS hard limit，不执行 solver、Node 或生产 compiler，不检查 counterexample minimality，也不增加 kernel / certificate 能力。测试使用的 runtime binary / TCB digest 仍是合成契约身份，不是可发布 payload 或六平台证据。
+
+后续 [Independent Checker CLI v0.1](checker-cli-v0.1.md) 已将本入口接入唯一产品命令，但没有改变这里的累计账本、内部 / 外层资源分类或本切片当时的合成身份边界；正式构建、artifact 登记与 launcher OS hard limit 仍须独立完成。

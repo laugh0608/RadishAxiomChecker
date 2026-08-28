@@ -45,3 +45,5 @@ encoder 不从 Git commit、tree、源码摘要、expected result 或相邻文�
 完整调用入口现由 [invocation 与累计资源边界](invocation-resource-budget-v0.1.md) 承载：它在真实身份足以绑定规范结果时，将 `chk-digest-01` 的确定摘要矛盾物化为 `rejected`，将 `chk-resource-01` 的累计内部预算不足物化为 `incomplete`，并在十类 check 与编码前执行 wall-clock 门禁。局部 encoder 仍只编码调用方交付的既有 `Result`，不会自行读取 bundle 或建立第二套聚合 / 预算路径。
 
 本切片不实现产品 CLI，不构建、验收或发布 checker binary / `checker.artifact`，不执行 solver、Node、生产 compiler 或 adapter，不增加 kernel / certificate 能力，不检查 minimality，也不产生六平台运行证据。
+
+后续 [Independent Checker CLI v0.1](checker-cli-v0.1.md) 已把 runtime identity validator 与本 encoder 接入唯一命令入口；普通本机构建和测试合成 executable 仍不构成已验收 `checker.artifact`，也不改变外层 `not-produced` failure 边界。

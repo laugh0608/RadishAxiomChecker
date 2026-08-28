@@ -35,6 +35,25 @@ type RuntimeIdentity struct {
 	TCB             []RuntimeTCBComponent
 }
 
+// ValidateRuntimeIdentity verifies the source/runtime identity pair before a
+// bundle is inspected. Evidence and request identities are populated by the
+// invocation itself and are deliberately outside this preflight boundary.
+func ValidateRuntimeIdentity(boundary IdentityBoundary, runtimeIdentity RuntimeIdentity) error {
+	probe := boundary
+	probe.Evidence = DocumentIdentity{
+		ContentDigest:   boundary.Checker.Source,
+		DomainDigest:    boundary.Checker.Source,
+		DomainAvailable: true,
+	}
+	probe.Request = probe.Evidence
+	normalizedBoundary, err := normalizeBoundary(probe)
+	if err != nil {
+		return err
+	}
+	_, err = normalizeRuntimeIdentity(normalizedBoundary, runtimeIdentity)
+	return err
+}
+
 type CompanionChecker struct {
 	Artifact  protocol.Digest
 	Name      string
