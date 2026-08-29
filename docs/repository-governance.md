@@ -13,8 +13,8 @@
 ## 分支与合并
 
 - `master` 是 GitHub 默认稳定主线，只通过 PR 接收阶段性稳定化和 hotfix。
-- `dev` 是常态集成分支。单人维护阶段允许维护者在执行完整本地门禁后直接推进 `dev`；外部贡献和并行工作使用 topic branch PR。
-- 普通拓扑为 `topic -> dev -> master -> dev`。`dev -> master` 优先使用 merge commit，进入 `master` 后必须回流到 `dev`。
+- `dev` 是常态开发与集成分支。串行普通任务由维护者在执行完整本地门禁后直接推进；外部贡献、并行写入、风险隔离或明确评审需求使用 topic branch PR。Agent 不自动创建 `codex/*` 分支或额外 worktree。
+- 普通拓扑为 `dev -> master -> dev`；需要 topic branch 时在前面增加 `topic -> dev`。`dev -> master` 优先使用 merge commit，进入 `master` 后必须回流到 `dev`。
 - 允许 merge commit 和 rebase merge，禁用 squash merge；共享分支禁止 force push、删除和破坏性历史重写。
 - 提交遵循 Conventional Commits；语义、Evidence、信任、隔离、构建和 payload 边界变化必须在 PR 中显式说明。
 
@@ -22,12 +22,12 @@
 
 ## CI 契约
 
-`.github/workflows/pr-check.yml` 在 `master` / `dev` push、面向两者的 PR 和手工触发时运行，只授予 `contents: read`。两个组件 job 为：
+`.github/workflows/pr-check.yml` 在面向 `master` / `dev` 的 PR 和手工触发时运行，普通分支 push（包括直接进入 `dev`）不自动触发，只授予 `contents: read`。两个组件 job 为：
 
 1. `Repository Governance`：必需文件、Agent 入口同步、文本与差异卫生、action 精确固定、稳定聚合名和 PR commit 的 Conventional Commits。
 2. `Checker Go Quality`：精确 `go1.26.7`、`go test`、`go vet`、`gofmt`、`checker.source` 和零第三方 module 闭包。
 
-`.github/workflows/checker-payload-candidate.yml` 是隔离的手工候选流程，不进入常规 push / PR CI。它只接受显式 source、version 与上传确认，在 `macos-15` arm64 runner 上复跑门禁并走受控 build → acceptance → deterministic pack，然后以 direct-file Actions artifact 保留最多 90 天；独立 read-back job 只按 artifact ID 下载、运行严格 archive verifier 并复核 provider API 元数据。该文件进入默认分支、触发 workflow、下载 Go archive、构建与上传都不是仓库内配置自行获得的授权，详见 [payload 候选归档与留存边界 v0.1](checker-payload-retention-v0.1.md)。
+`.github/workflows/checker-payload-candidate.yml` 是隔离的手工候选流程，不进入常规 push / PR CI。它只接受显式 source、version 与上传确认，在 `macos-15` arm64 runner 上复跑门禁并走受控 build → payload acceptance → inner pack → distribution acceptance → outer pack，然后以 direct-file Actions artifact 保留唯一 distribution candidate 最多 90 天；独立 read-back job 只按 artifact ID 下载、运行严格 distribution verifier 并复核 provider API 元数据。该文件进入默认分支、触发 workflow、下载 Go archive、构建与上传都不是仓库内配置自行获得的授权，详见 [payload 候选归档与留存边界 v0.1](checker-payload-retention-v0.1.md)和 [runtime distribution package v0.1](checker-payload-distribution-v0.1.md)。
 
 唯一供后续 Ruleset 绑定的稳定聚合 context 是 `Candidate Quality`。组件可在不改变该 context 的前提下扩展，但不得加入生产 Rust、solver、Node 或其他与 checker 无关的门禁。
 
