@@ -27,12 +27,16 @@
 1. `Repository Governance`：必需文件、Agent 入口同步、文本与差异卫生、action 精确固定、稳定聚合名和 PR commit 的 Conventional Commits。
 2. `Checker Go Quality`：精确 `go1.26.7`、`go test`、`go vet`、`gofmt`、`checker.source` 和零第三方 module 闭包。
 
+`.github/workflows/checker-payload-candidate.yml` 是隔离的手工候选流程，不进入常规 push / PR CI。它只接受显式 source、version 与上传确认，在 `macos-15` arm64 runner 上复跑门禁并走受控 build → acceptance → deterministic pack，然后以 direct-file Actions artifact 保留最多 90 天；独立 read-back job 只按 artifact ID 下载、运行严格 archive verifier 并复核 provider API 元数据。该文件进入默认分支、触发 workflow、下载 Go archive、构建与上传都不是仓库内配置自行获得的授权，详见 [payload 候选归档与留存边界 v0.1](checker-payload-retention-v0.1.md)。
+
 唯一供后续 Ruleset 绑定的稳定聚合 context 是 `Candidate Quality`。组件可在不改变该 context 的前提下扩展，但不得加入生产 Rust、solver、Node 或其他与 checker 无关的门禁。
 
 CI 使用以下精确固定的官方 GitHub Actions：
 
 - `actions/checkout` v6.0.2，commit `de0fac2e4500dabe0009e67214ff5f5447ce83dd`；
-- `actions/setup-go` v7.0.0，commit `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e`。
+- `actions/setup-go` v7.0.0，commit `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e`；
+- 手工候选上传使用 `actions/upload-artifact` v7.0.1，commit `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a`；
+- 手工候选回读使用 `actions/download-artifact` v8.0.1，commit `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c`。
 
 `setup-go` 在隔离 CI runner 中取得官方 Go distribution，这是显式 CI 供应链依赖；`cache: false`，后续命令同时使用 `GOTOOLCHAIN=local` 与 `GOPROXY=off`，禁止 Go 自动切换工具链或取得 module。该 CI 工具链只提供测试和静态检查证据，不充当受控 payload builder 或已验收 `checker.artifact`。
 
