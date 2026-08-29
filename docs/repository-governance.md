@@ -13,8 +13,8 @@
 ## 分支与合并
 
 - `master` 是 GitHub 默认稳定主线，只通过 PR 接收阶段性稳定化和 hotfix。
-- `dev` 是常态集成分支。单人维护阶段允许维护者在执行完整本地门禁后直接推进 `dev`；外部贡献和并行工作使用 topic branch PR。
-- 普通拓扑为 `topic -> dev -> master -> dev`。`dev -> master` 优先使用 merge commit，进入 `master` 后必须回流到 `dev`。
+- `dev` 是常态开发与集成分支。串行普通任务由维护者在执行完整本地门禁后直接推进；外部贡献、并行写入、风险隔离或明确评审需求使用 topic branch PR。Agent 不自动创建 `codex/*` 分支或额外 worktree。
+- 普通拓扑为 `dev -> master -> dev`；需要 topic branch 时在前面增加 `topic -> dev`。`dev -> master` 优先使用 merge commit，进入 `master` 后必须回流到 `dev`。
 - 允许 merge commit 和 rebase merge，禁用 squash merge；共享分支禁止 force push、删除和破坏性历史重写。
 - 提交遵循 Conventional Commits；语义、Evidence、信任、隔离、构建和 payload 边界变化必须在 PR 中显式说明。
 
@@ -22,7 +22,7 @@
 
 ## CI 契约
 
-`.github/workflows/pr-check.yml` 在 `master` / `dev` push、面向两者的 PR 和手工触发时运行，只授予 `contents: read`。两个组件 job 为：
+`.github/workflows/pr-check.yml` 在面向 `master` / `dev` 的 PR 和手工触发时运行，普通分支 push（包括直接进入 `dev`）不自动触发，只授予 `contents: read`。两个组件 job 为：
 
 1. `Repository Governance`：必需文件、Agent 入口同步、文本与差异卫生、action 精确固定、稳定聚合名和 PR commit 的 Conventional Commits。
 2. `Checker Go Quality`：精确 `go1.26.7`、`go test`、`go vet`、`gofmt`、`checker.source` 和零第三方 module 闭包。

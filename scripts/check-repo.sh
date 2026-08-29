@@ -111,6 +111,12 @@ grep -F "$checkout_pin" "$workflow" >/dev/null
 grep -F "$setup_go_pin" "$workflow" >/dev/null
 grep -F 'name: Candidate Quality' "$workflow" >/dev/null
 grep -F 'contents: read' "$workflow" >/dev/null
+grep -F '  pull_request:' "$workflow" >/dev/null
+
+if LC_ALL=C grep -E '^  push:' "$workflow" >/dev/null 2>&1; then
+  echo "checker PR workflow must not run on ordinary branch pushes." >&2
+  exit 1
+fi
 
 grep -F 'workflow_dispatch:' "$candidate_workflow" >/dev/null
 grep -F 'confirm_candidate_upload:' "$candidate_workflow" >/dev/null

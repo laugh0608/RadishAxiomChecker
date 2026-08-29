@@ -7,7 +7,8 @@
 ## 分支与 PR
 
 - `master` 是默认稳定主线，只接收阶段性稳定化或 hotfix，并在远程基线建立后只通过 PR 更新。
-- `dev` 是常态集成分支；普通贡献从 `feature/*`、`fix/*`、`docs/*`、`proposal/*`、`experiment/*` 或 `chore/*` 向 `dev` 发起 PR。
+- `dev` 是常态开发与集成分支；项目所有者或已授权维护者串行推进普通任务时，在执行完整本地门禁后直接在 `dev` 开发和提交。
+- 外部贡献、并行写入、风险隔离或明确需要评审时，从 `feature/*`、`fix/*`、`docs/*`、`proposal/*`、`experiment/*` 或 `chore/*` 向 `dev` 发起 PR；Agent 不因默认流程自动创建 `codex/*` 分支或额外 worktree。
 - `dev -> master` 使用可审计的阶段 PR；合并后必须把 `master` 回流到 `dev`，再开始下一批开发。
 - 禁止 force push 或破坏性重写共享分支；不使用 squash merge 压平可审计提交。
 
