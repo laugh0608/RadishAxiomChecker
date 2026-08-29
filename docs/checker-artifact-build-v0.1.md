@@ -64,3 +64,5 @@ GOTOOLCHAIN=local CGO_ENABLED=0 GOPROXY=off go run ./cmd/radishaxiom-checker-acc
 两次字节一致只说明当前 source、精确 Go payload、target、flags 与固定环境在本机受控流程中产生相同 bytes；它不是源码可证明正确、Go host 可由 source 复现、跨平台等价或形式证明。acceptance 的 `accepted-for-controlled-runtime-registration` 只表示该 payload 已具备登记候选所需的本地构建与身份 / 场景证据，不会自动修改主仓 registry、execution profile、安装位置、Release 或 Evidence。
 
 本切片不提交 checker binary，不安装或发布工具链，不修改 shell / 系统配置，不形成签名、公证、安装包、launcher hard memory / filesystem / network 隔离或其他五个平台结论。使用 `0.1-dev` 只形成精确开发实现身份；正式产品版本仍须按项目版本治理另行冻结，不能把 dev payload 冒充 release。
+
+完成 acceptance 后的确定性封装、有限期候选暂存、provider 回读和 durable active storage 停止线见 [payload 候选归档与留存边界 v0.1](checker-payload-retention-v0.1.md)。acceptance 目录不能在这些原始字节形成已登记 retention / fetch 边界前删除。

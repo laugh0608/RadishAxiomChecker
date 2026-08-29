@@ -31,7 +31,11 @@ go.mod
 .gitignore
 .github/PULL_REQUEST_TEMPLATE.md
 .github/workflows/pr-check.yml
+cmd/radishaxiom-checker-payload-archive/main.go
+docs/checker-payload-retention-v0.1.md
 docs/repository-governance.md
+internal/payloadarchive/archive.go
+internal/payloadarchive/archive_test.go
 scripts/check-module-closure.sh
 scripts/check-repo.sh
 scripts/check-source-identity.sh

@@ -24,6 +24,7 @@
 - [Independent Checker invocation 与累计资源边界](docs/invocation-resource-budget-v0.1.md)：用一次调用唯一的累计账本连接前置身份、十类检查和编码前门禁，让 `CHK-DIGEST-01` / `CHK-RESOURCE-01` 分别形成真实 `rejected` / `incomplete`，并让 `CHK-PROCESS-01` 继续只形成外层 `not-produced` failure。
 - [Independent Checker CLI v0.1](docs/checker-cli-v0.1.md)：提供唯一的 `check --bundle-root=<canonical-realpath>` 产品入口，严格拒绝参数、stdin 与 realpath 漂移，在读取 bundle 前复算当前 executable SHA-256，并把 linker 注入的 source / 版本、实际 `go1.26.7` toolchain 与 runtime TCB 绑定到既有 invocation / companion 路径。
 - [Independent Checker macOS arm64 受控构建与 payload acceptance v0.1](docs/checker-artifact-build-v0.1.md)：复算已接受 Go archive 后用两个隔离 cache / home / tmp 运行精确 `go1.26.7`，只在 binary bytes 一致时形成 artifact / canonical provenance；独立 acceptance 再检查 Mach-O、Go build info、自身份与 normal / rejected / incomplete 三条真实 CLI 路径。
+- [Independent Checker payload 候选归档与留存边界 v0.1](docs/checker-payload-retention-v0.1.md)：把 artifact、canonical provenance / acceptance 和 retention manifest 确定性封装为可逐字重建的 USTAR；GitHub Actions artifact 只作最长 90 天候选暂存，不能冒充 durable active runtime store。
 
 Git commit / tree 不充当 `checker.source`，普通本机构建也不充当正式 checker binary 或 `checker.artifact`。Axiom IR、Evidence 结构、obligation completeness、state / support、counterexample world / WF、concrete input / Pre、proof-failure target replay、concrete output comparison、proof support 审计、production conclusion 重算、四态内存结果、canonical codec 与 CLI 闭合通过不等于完整语义接受：有限解释只确认锁定具体 world / artifact、query envelope、status、attestation、生产聚合与 assurance policy 关系，不证明其他输入或 query theorem；当前实现不重放 kernel rule，不把 backend attestation 升级为独立 proof，不检查 minimality，不检查 certificate。源码仓库与测试本身不承载某次精确 payload 的构建、验收或登记事实；此类事实必须由仓库外 canonical provenance / acceptance 与 RadishAxiom 主仓状态或 registry 共同给出。测试通过仅表示这些实现路径被检查，不构成形式证明、可发布 artifact 或跨平台结论。
 
@@ -55,7 +56,7 @@ GOTOOLCHAIN=local CGO_ENABLED=0 go vet ./...
 
 CLI 的 `checker.source` 与精确实现版本必须由后续受控构建注入；未注入身份或由非 `go1.26.7` 运行时构建的命令会在读取 bundle 前失败，不允许作为正式 companion producer。
 
-受控构建与 acceptance 命令只消费显式 canonical path，不负责下载、安装、登记或发布 payload。生成目录位于仓库之外；checker binary 不提交到源码仓库。
+受控构建、acceptance 与候选归档命令只消费显式 canonical path，不负责下载、上传、安装、登记或发布 payload。生成目录位于仓库之外；checker binary 和候选 archive 不提交到源码仓库。
 
 源码身份专项门禁为：
 
