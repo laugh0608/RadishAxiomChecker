@@ -1,6 +1,6 @@
 # RadishAxiom Independent Checker (Go)
 
-这是 RadishAxiom 独立 checker 的 Go 实现仓库。它与生产 Rust `raxc` 分仓、分依赖图和分发布流水线，输入只来自版本化协议和按摘要锁定的测试制品。
+这是 RadishAxiom 独立 checker 的 Go 实现仓库。它与生产 Rust `raxc` 分仓、分依赖图和分发布流水线，输入只来自版本化协议和按摘要锁定的测试制品。贡献、分支、CI 与远程边界见[仓库治理](docs/repository-governance.md)和[贡献指南](CONTRIBUTING.md)；安全问题按 [SECURITY.md](SECURITY.md) 私下报告。
 
 当前实现以下拒绝优先的小切片：
 
@@ -28,6 +28,19 @@
 Git commit / tree 不充当 `checker.source`，普通本机构建也不充当正式 checker binary 或 `checker.artifact`。Axiom IR、Evidence 结构、obligation completeness、state / support、counterexample world / WF、concrete input / Pre、proof-failure target replay、concrete output comparison、proof support 审计、production conclusion 重算、四态内存结果、canonical codec 与 CLI 闭合通过不等于完整语义接受：有限解释只确认锁定具体 world / artifact、query envelope、status、attestation、生产聚合与 assurance policy 关系，不证明其他输入或 query theorem；当前实现不重放 kernel rule，不把 backend attestation 升级为独立 proof，不检查 minimality，不检查 certificate。源码仓库与测试本身不承载某次精确 payload 的构建、验收或登记事实；此类事实必须由仓库外 canonical provenance / acceptance 与 RadishAxiom 主仓状态或 registry 共同给出。测试通过仅表示这些实现路径被检查，不构成形式证明、可发布 artifact 或跨平台结论。
 
 完整调用现在用一个账本累计 request / manifest / artifact 的 JSON item / depth / token、唯一 manifest artifact bytes、64 KiB digest blocks、各语义检查 step 和仍存活预算对象的确定性逻辑字节；十类 check 前后、每 1,024 semantic steps 与编码前执行内部 monotonic `wall-clock` 门禁。内部资源不足在真实身份可绑定时形成 `incomplete`，既有确定拒绝继续优先；外层 kill、crash、hard deadline 与输出截断仍只形成 `not-produced` failure。局部 API 保留自己的硬上限，不能绕过完整 invocation 的累计账本。
+
+## 仓库治理
+
+`master` 是默认稳定主线，`dev` 是常态集成分支。远程建立后，面向两者的 PR 以及两个分支的 push 都运行独立 CI；后续 Ruleset 只绑定稳定聚合 context `Candidate Quality`，并且必须等待该 context 在远程真实产生后另行授权。
+
+仓库级门禁为：
+
+```sh
+./scripts/check-repo.sh
+./scripts/check-module-closure.sh
+```
+
+GitHub Actions 使用精确 commit 固定的官方 `actions/checkout` 与 `actions/setup-go`；CI 中取得的 Go distribution 只用于测试和静态检查，不充当受控 payload builder、payload acceptance 或 `checker.artifact`。
 
 ## 工具链与验证
 

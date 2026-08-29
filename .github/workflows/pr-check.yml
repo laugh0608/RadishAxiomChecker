@@ -1,0 +1,116 @@
+name: Checker Checks
+
+on:
+  push:
+    branches:
+      - dev
+      - master
+  pull_request:
+    branches:
+      - dev
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checker-checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-governance:
+    name: Repository Governance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Check repository governance
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ -n "${BASE_SHA}" ]]; then
+            ./scripts/check-repo.sh --base-ref "${BASE_SHA}"
+          else
+            ./scripts/check-repo.sh
+          fi
+
+  checker-go-quality:
+    name: Checker Go Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up exact Go toolchain
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          cache: false
+          go-version: "1.26.7"
+
+      - name: Verify toolchain identity
+        shell: bash
+        run: test "$(go env GOVERSION)" = "go1.26.7"
+
+      - name: Run tests
+        shell: bash
+        run: GOTOOLCHAIN=local CGO_ENABLED=0 GOPROXY=off go test -count=1 ./...
+
+      - name: Run vet
+        shell: bash
+        run: GOTOOLCHAIN=local CGO_ENABLED=0 GOPROXY=off go vet ./...
+
+      - name: Check formatting
+        shell: bash
+        run: test -z "$(gofmt -l .)"
+
+      - name: Check checker source identity
+        shell: bash
+        run: ./scripts/check-source-identity.sh
+
+      - name: Check module closure
+        shell: bash
+        run: ./scripts/check-module-closure.sh
+
+  candidate-quality:
+    name: Candidate Quality
+    if: always()
+    needs:
+      - repository-governance
+      - checker-go-quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Summarize candidate quality
+        shell: bash
+        env:
+          CHECKER_GO_QUALITY_RESULT: ${{ needs.checker-go-quality.result }}
+          REPOSITORY_GOVERNANCE_RESULT: ${{ needs.repository-governance.result }}
+        run: |
+          {
+            echo "## Candidate Quality"
+            echo
+            echo "| Check | Result |"
+            echo "| --- | --- |"
+            echo "| Repository Governance | ${REPOSITORY_GOVERNANCE_RESULT} |"
+            echo "| Checker Go Quality | ${CHECKER_GO_QUALITY_RESULT} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          if [[ "${REPOSITORY_GOVERNANCE_RESULT}" != "success" ]] || [[ "${CHECKER_GO_QUALITY_RESULT}" != "success" ]]; then
+            echo "At least one candidate quality component did not succeed." >&2
+            exit 1
+          fi
+
+          echo "All candidate quality components succeeded."

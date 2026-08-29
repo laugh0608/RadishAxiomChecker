@@ -1,0 +1,118 @@
+#!/bin/sh
+set -eu
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repository_root=$(dirname -- "$script_dir")
+base_ref=
+
+usage() {
+  echo "usage: ./scripts/check-repo.sh [--base-ref <git-ref>]" >&2
+  exit 2
+}
+
+if [ "$#" -gt 0 ]; then
+  [ "$#" -eq 2 ] || usage
+  [ "$1" = "--base-ref" ] || usage
+  [ -n "$2" ] || usage
+  base_ref=$2
+fi
+
+cd "$repository_root"
+
+required_files='AGENTS.md
+CLAUDE.md
+CONTRIBUTING.md
+LICENSE
+README.md
+SECURITY.md
+go.mod
+.editorconfig
+.gitattributes
+.gitignore
+.github/PULL_REQUEST_TEMPLATE.md
+.github/workflows/pr-check.yml
+docs/repository-governance.md
+scripts/check-module-closure.sh
+scripts/check-repo.sh
+scripts/check-source-identity.sh
+scripts/update-source-identity.sh
+source-identity/checker-source-v0.1.jcs'
+
+printf '%s\n' "$required_files" | while IFS= read -r path; do
+  if [ ! -f "$path" ]; then
+    echo "required repository file is missing: $path" >&2
+    exit 1
+  fi
+done
+
+if ! cmp -s AGENTS.md CLAUDE.md; then
+  echo "AGENTS.md and CLAUDE.md must be byte-identical." >&2
+  exit 1
+fi
+
+git diff --check
+git diff --cached --check
+
+text_files=$(
+  {
+    git ls-files '*.go' '*.md' '*.mod' '*.sh' '*.yaml' '*.yml' '.editorconfig' '.gitattributes' '.gitignore'
+    git ls-files --others --exclude-standard -- '*.go' '*.md' '*.mod' '*.sh' '*.yaml' '*.yml' '.editorconfig' '.gitattributes' '.gitignore'
+  } | LC_ALL=C sort -u
+)
+printf '%s\n' "$text_files" | while IFS= read -r path; do
+  [ -n "$path" ] || continue
+  [ -f "$path" ] || continue
+
+  first_octets=$(LC_ALL=C head -c 3 "$path" | od -An -tx1 | tr -d ' \n')
+  if [ "$first_octets" = "efbbbf" ]; then
+    echo "UTF-8 BOM is forbidden: $path" >&2
+    exit 1
+  fi
+
+  if LC_ALL=C grep -n "$(printf '\r')" "$path" >/dev/null 2>&1; then
+    echo "CR bytes are forbidden: $path" >&2
+    exit 1
+  fi
+
+  if LC_ALL=C grep -n '[[:blank:]]$' "$path" >/dev/null 2>&1; then
+    echo "trailing whitespace is forbidden: $path" >&2
+    exit 1
+  fi
+
+  if [ -s "$path" ]; then
+    last_octet=$(tail -c 1 "$path" | od -An -tu1 | tr -d ' \n')
+    if [ "$last_octet" != "10" ]; then
+      echo "text file must end with LF: $path" >&2
+      exit 1
+    fi
+  fi
+done
+
+workflow=.github/workflows/pr-check.yml
+checkout_pin='actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd'
+setup_go_pin='actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e'
+
+grep -F "$checkout_pin" "$workflow" >/dev/null
+grep -F "$setup_go_pin" "$workflow" >/dev/null
+grep -F 'name: Candidate Quality' "$workflow" >/dev/null
+grep -F 'contents: read' "$workflow" >/dev/null
+
+if LC_ALL=C grep -E 'uses: [^#[:space:]]+@(main|master|v[0-9]+([.]|$))' "$workflow" >/dev/null 2>&1; then
+  echo "GitHub Actions must use exact commit pins, not branches or major tags." >&2
+  exit 1
+fi
+
+if [ -n "$base_ref" ]; then
+  git rev-parse --verify "$base_ref^{commit}" >/dev/null
+  subjects=$(git log --format='%s' "$base_ref..HEAD")
+  printf '%s\n' "$subjects" | while IFS= read -r subject; do
+    [ -n "$subject" ] || continue
+    if printf '%s\n' "$subject" | LC_ALL=C grep -E '^(feat|fix|docs|refactor|test|chore|ci|build|perf|revert)(\([a-z0-9][a-z0-9._/-]*\))?!?: .+$|^Merge .+$|^Revert ".+"$' >/dev/null; then
+      continue
+    fi
+    echo "commit subject is not Conventional Commits: $subject" >&2
+    exit 1
+  done
+fi
+
+echo "Repository governance checks passed."
