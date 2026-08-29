@@ -1,0 +1,359 @@
+name: Checker Payload Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_identity:
+        description: Exact checker.source identity (sha256:<64 lowercase hex>)
+        required: true
+        type: string
+      version:
+        description: Exact checker implementation version (never latest)
+        required: true
+        type: string
+      confirm_candidate_upload:
+        description: Create a temporary GitHub Actions artifact retained for at most 90 days
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: checker-payload-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build_upload:
+    name: Build, Accept, Pack, and Upload Candidate
+    runs-on: macos-15
+    timeout-minutes: 45
+    outputs:
+      archive_bytes: ${{ steps.prepare.outputs.archive_bytes }}
+      archive_name: ${{ steps.prepare.outputs.archive_name }}
+      archive_sha256: ${{ steps.prepare.outputs.archive_sha256 }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_url: ${{ steps.upload.outputs.artifact-url }}
+      manifest_bytes: ${{ steps.prepare.outputs.manifest_bytes }}
+      manifest_sha256: ${{ steps.prepare.outputs.manifest_sha256 }}
+      source_identity: ${{ steps.prepare.outputs.source_identity }}
+      version: ${{ steps.prepare.outputs.version }}
+
+    steps:
+      - name: Checkout exact dispatched candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Set up exact orchestration toolchain
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          cache: false
+          go-version: "1.26.7"
+
+      - name: Verify dispatch boundary and candidate source
+        shell: bash
+        env:
+          CONFIRM_CANDIDATE_UPLOAD: ${{ inputs.confirm_candidate_upload }}
+          REQUESTED_SOURCE: ${{ inputs.source_identity }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          test "${CONFIRM_CANDIDATE_UPLOAD}" = "true"
+          case "${GITHUB_REF}" in
+            refs/heads/dev|refs/heads/master) ;;
+            *)
+              echo "candidate workflow only accepts dev or master branch refs" >&2
+              exit 1
+              ;;
+          esac
+          [[ "${REQUESTED_SOURCE}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "${REQUESTED_VERSION}" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$ ]]
+          test "${REQUESTED_VERSION}" != "latest"
+          test "$(uname -m)" = "arm64"
+          test "$(go env GOVERSION)" = "go1.26.7"
+
+          actual_source="sha256:$(shasum -a 256 source-identity/checker-source-v0.1.jcs | awk '{print $1}')"
+          test "${REQUESTED_SOURCE}" = "${actual_source}"
+          ./scripts/check-source-identity.sh
+
+      - name: Run candidate quality gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/check-repo.sh
+          ./scripts/check-module-closure.sh
+          GOTOOLCHAIN=local CGO_ENABLED=0 GOPROXY=off go test -count=1 ./...
+          GOTOOLCHAIN=local CGO_ENABLED=0 GOPROXY=off go vet ./...
+          test -z "$(gofmt -l .)"
+
+      - name: Build, accept, and pack exact payload
+        id: prepare
+        shell: bash
+        env:
+          REQUESTED_SOURCE: ${{ inputs.source_identity }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          umask 022
+
+          source_root=$(pwd -P)
+          candidate_root="${RUNNER_TEMP}/radishaxiom-checker-candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test ! -e "${candidate_root}"
+          mkdir -m 0755 "${candidate_root}"
+          candidate_root=$(CDPATH= cd -- "${candidate_root}" && pwd -P)
+          build_root="${candidate_root}/build"
+          mkdir -m 0755 "${build_root}"
+
+          toolchain_archive="${candidate_root}/go1.26.7.darwin-arm64.tar.gz"
+          curl \
+            --fail \
+            --location \
+            --proto '=https' \
+            --proto-redir '=https' \
+            --retry 5 \
+            --retry-connrefused \
+            --silent \
+            --show-error \
+            --output "${toolchain_archive}" \
+            https://go.dev/dl/go1.26.7.darwin-arm64.tar.gz
+          test "$(wc -c < "${toolchain_archive}" | tr -d ' ')" = "64772572"
+          test "$(shasum -a 256 "${toolchain_archive}" | awk '{print $1}')" = "020a1e8224811be75163e920bc77e0926a1390a6aeea19bdcf23f74b9d749f6d"
+
+          GOTOOLCHAIN=local CGO_ENABLED=0 GOPROXY=off go run ./cmd/radishaxiom-checker-build \
+            build \
+            --source-root="${source_root}" \
+            --toolchain-archive="${toolchain_archive}" \
+            --output-root="${build_root}" \
+            --version="${REQUESTED_VERSION}"
+
+          GOTOOLCHAIN=local CGO_ENABLED=0 GOPROXY=off go run ./cmd/radishaxiom-checker-accept \
+            accept \
+            --source-root="${source_root}" \
+            --build-root="${build_root}" \
+            --version="${REQUESTED_VERSION}"
+
+          source_hash=${REQUESTED_SOURCE#sha256:}
+          archive_name="radishaxiom-checker-darwin-arm64-${REQUESTED_VERSION}-${source_hash}.tar"
+          archive_path="${candidate_root}/${archive_name}"
+          pack_result=$(
+            GOTOOLCHAIN=local CGO_ENABLED=0 GOPROXY=off go run ./cmd/radishaxiom-checker-payload-archive \
+              pack \
+              --source-root="${source_root}" \
+              --build-root="${build_root}" \
+              --output-file="${archive_path}" \
+              --version="${REQUESTED_VERSION}"
+          )
+          printf '%s\n' "${pack_result}"
+
+          verify_result=$(
+            GOTOOLCHAIN=local CGO_ENABLED=0 GOPROXY=off go run ./cmd/radishaxiom-checker-payload-archive \
+              verify \
+              --archive="${archive_path}"
+          )
+          test "${verify_result}" = "${pack_result}"
+
+          archive_bytes=$(printf '%s\n' "${pack_result}" | awk -F= '$1 == "archive_bytes" {print $2}')
+          archive_sha256=$(printf '%s\n' "${pack_result}" | awk -F= '$1 == "archive_sha256" {print $2}')
+          manifest_bytes=$(printf '%s\n' "${pack_result}" | awk -F= '$1 == "manifest_bytes" {print $2}')
+          manifest_sha256=$(printf '%s\n' "${pack_result}" | awk -F= '$1 == "manifest_sha256" {print $2}')
+          result_source=$(printf '%s\n' "${pack_result}" | awk -F= '$1 == "source" {print $2}')
+          result_version=$(printf '%s\n' "${pack_result}" | awk -F= '$1 == "version" {print $2}')
+
+          test "${archive_bytes}" = "$(wc -c < "${archive_path}" | tr -d ' ')"
+          test "${archive_sha256}" = "sha256:$(shasum -a 256 "${archive_path}" | awk '{print $1}')"
+          test "${result_source}" = "${REQUESTED_SOURCE}"
+          test "${result_version}" = "${REQUESTED_VERSION}"
+
+          {
+            echo "archive_bytes=${archive_bytes}"
+            echo "archive_name=${archive_name}"
+            echo "archive_path=${archive_path}"
+            echo "archive_sha256=${archive_sha256}"
+            echo "candidate_root=${candidate_root}"
+            echo "manifest_bytes=${manifest_bytes}"
+            echo "manifest_sha256=${manifest_sha256}"
+            echo "source_identity=${result_source}"
+            echo "version=${result_version}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Upload single-file candidate without provider archive
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          archive: false
+          if-no-files-found: error
+          overwrite: false
+          path: ${{ steps.prepare.outputs.archive_path }}
+          retention-days: 90
+
+      - name: Match upload digest to exact payload bytes
+        shell: bash
+        env:
+          ARCHIVE_SHA256: ${{ steps.prepare.outputs.archive_sha256 }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+        run: |
+          set -euo pipefail
+          [[ "${ARTIFACT_ID}" =~ ^[0-9]+$ ]]
+          [[ "${ARTIFACT_DIGEST}" =~ ^[0-9a-f]{64}$ ]]
+          test "sha256:${ARTIFACT_DIGEST}" = "${ARCHIVE_SHA256}"
+
+      - name: Clean local candidate workspace
+        if: always()
+        shell: bash
+        env:
+          CANDIDATE_ROOT: ${{ steps.prepare.outputs.candidate_root }}
+        run: |
+          set -euo pipefail
+          expected="${RUNNER_TEMP}/radishaxiom-checker-candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [[ -n "${CANDIDATE_ROOT}" ]]; then
+            test "${CANDIDATE_ROOT}" = "${expected}"
+            rm -rf -- "${CANDIDATE_ROOT}"
+          elif [[ -d "${expected}" ]]; then
+            rm -rf -- "${expected}"
+          fi
+
+  readback:
+    name: Read Back Exact Candidate by Artifact ID
+    needs: build_upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact dispatched candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Set up exact verification toolchain
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          cache: false
+          go-version: "1.26.7"
+
+      - name: Download exact candidate by immutable artifact ID
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.build_upload.outputs.artifact_id }}
+          digest-mismatch: error
+          path: ${{ runner.temp }}/radishaxiom-checker-readback-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Verify provider metadata and downloaded payload
+        shell: bash
+        env:
+          ARCHIVE_BYTES: ${{ needs.build_upload.outputs.archive_bytes }}
+          ARCHIVE_NAME: ${{ needs.build_upload.outputs.archive_name }}
+          ARCHIVE_SHA256: ${{ needs.build_upload.outputs.archive_sha256 }}
+          ARTIFACT_DIGEST: ${{ needs.build_upload.outputs.artifact_digest }}
+          ARTIFACT_ID: ${{ needs.build_upload.outputs.artifact_id }}
+          ARTIFACT_URL: ${{ needs.build_upload.outputs.artifact_url }}
+          GH_TOKEN: ${{ github.token }}
+          MANIFEST_BYTES: ${{ needs.build_upload.outputs.manifest_bytes }}
+          MANIFEST_SHA256: ${{ needs.build_upload.outputs.manifest_sha256 }}
+          READBACK_ROOT: ${{ runner.temp }}/radishaxiom-checker-readback-${{ github.run_id }}-${{ github.run_attempt }}
+          SOURCE_IDENTITY: ${{ needs.build_upload.outputs.source_identity }}
+          VERSION: ${{ needs.build_upload.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          candidate="${READBACK_ROOT}/${ARCHIVE_NAME}"
+          test -f "${candidate}"
+          test "$(find "${READBACK_ROOT}" -mindepth 1 -maxdepth 1 -type f | wc -l | tr -d ' ')" = "1"
+          test "$(wc -c < "${candidate}" | tr -d ' ')" = "${ARCHIVE_BYTES}"
+          test "sha256:$(sha256sum "${candidate}" | awk '{print $1}')" = "${ARCHIVE_SHA256}"
+          test "sha256:${ARTIFACT_DIGEST}" = "${ARCHIVE_SHA256}"
+
+          verify_result=$(
+            GOTOOLCHAIN=local CGO_ENABLED=0 GOPROXY=off go run ./cmd/radishaxiom-checker-payload-archive \
+              verify \
+              --archive="${candidate}"
+          )
+          test "$(printf '%s\n' "${verify_result}" | awk -F= '$1 == "archive_bytes" {print $2}')" = "${ARCHIVE_BYTES}"
+          test "$(printf '%s\n' "${verify_result}" | awk -F= '$1 == "archive_sha256" {print $2}')" = "${ARCHIVE_SHA256}"
+          test "$(printf '%s\n' "${verify_result}" | awk -F= '$1 == "manifest_bytes" {print $2}')" = "${MANIFEST_BYTES}"
+          test "$(printf '%s\n' "${verify_result}" | awk -F= '$1 == "manifest_sha256" {print $2}')" = "${MANIFEST_SHA256}"
+          test "$(printf '%s\n' "${verify_result}" | awk -F= '$1 == "source" {print $2}')" = "${SOURCE_IDENTITY}"
+          test "$(printf '%s\n' "${verify_result}" | awk -F= '$1 == "version" {print $2}')" = "${VERSION}"
+
+          provider_json="${READBACK_ROOT}/github-artifact-${ARTIFACT_ID}.json"
+          gh api \
+            --method GET \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}" > "${provider_json}"
+
+          jq -e \
+            --arg artifact_bytes "${ARCHIVE_BYTES}" \
+            --arg artifact_digest "sha256:${ARTIFACT_DIGEST}" \
+            --arg artifact_id "${ARTIFACT_ID}" \
+            --arg artifact_name "${ARCHIVE_NAME}" \
+            --arg head_sha "${GITHUB_SHA}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            '(.id | tostring) == $artifact_id and
+             .name == $artifact_name and
+             (.size_in_bytes | tostring) == $artifact_bytes and
+             .digest == $artifact_digest and
+             .expired == false and
+             (.workflow_run.id | tostring) == $run_id and
+             .workflow_run.head_sha == $head_sha and
+             (.created_at | type) == "string" and
+             (.expires_at | type) == "string" and
+             (.expires_at | fromdateiso8601) > (.created_at | fromdateiso8601)' \
+            "${provider_json}" >/dev/null
+
+          created_at=$(jq -er '.created_at' "${provider_json}")
+          expires_at=$(jq -er '.expires_at' "${provider_json}")
+          receipt="${READBACK_ROOT}/candidate-provider-readback-v0.1.json"
+          jq -cnS \
+            --arg archive_bytes "${ARCHIVE_BYTES}" \
+            --arg archive_name "${ARCHIVE_NAME}" \
+            --arg archive_sha256 "${ARCHIVE_SHA256}" \
+            --arg artifact_digest "sha256:${ARTIFACT_DIGEST}" \
+            --arg artifact_id "${ARTIFACT_ID}" \
+            --arg artifact_url "${ARTIFACT_URL}" \
+            --arg created_at "${created_at}" \
+            --arg expires_at "${expires_at}" \
+            --arg head_sha "${GITHUB_SHA}" \
+            --arg manifest_bytes "${MANIFEST_BYTES}" \
+            --arg manifest_sha256 "${MANIFEST_SHA256}" \
+            --arg ref "${GITHUB_REF}" \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            --arg run_attempt "${GITHUB_RUN_ATTEMPT}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            --arg source "${SOURCE_IDENTITY}" \
+            --arg version "${VERSION}" \
+            '{candidate_status:"candidate-retained-temporarily",format:"radishaxiom-checker-candidate-provider-readback",format_version:"0.1",inner_archive:{byte_length:$archive_bytes,filename:$archive_name,manifest:{byte_length:$manifest_bytes,raw_sha256:$manifest_sha256},raw_sha256:$archive_sha256},provider:{artifact_id:$artifact_id,created_at:$created_at,digest:$artifact_digest,expires_at:$expires_at,kind:"github-actions-direct-file",url:$artifact_url},readback:{exact_artifact_id:true,payload_archive_verified:true},source:$source,version:$version,workflow:{head_sha:$head_sha,ref:$ref,repository:$repository,run_attempt:$run_attempt,run_id:$run_id,workflow_file:".github/workflows/checker-payload-candidate.yml"}}' \
+            > "${receipt}"
+
+          {
+            echo "## Checker payload candidate read-back"
+            echo
+            echo "The provider object and the downloaded payload passed exact-ID read-back."
+            echo
+            echo '```json'
+            cat "${receipt}"
+            echo
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Clean read-back workspace
+        if: always()
+        shell: bash
+        env:
+          READBACK_ROOT: ${{ runner.temp }}/radishaxiom-checker-readback-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          expected="${RUNNER_TEMP}/radishaxiom-checker-readback-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          test "${READBACK_ROOT}" = "${expected}"
+          if [[ -d "${READBACK_ROOT}" ]]; then
+            rm -rf -- "${READBACK_ROOT}"
+          fi

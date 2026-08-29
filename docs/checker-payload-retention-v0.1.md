@@ -1,6 +1,6 @@
 # Independent Checker payload 候选归档与留存边界 v0.1
 
-本文定义 macOS arm64 checker payload 在完成受控构建与独立 acceptance 后、进入 RadishAxiom 主仓 active registration 前的确定性归档和候选留存边界。它不修改构建或 acceptance 语义，不选择最终产品发布载体，也不授权 GitHub workflow、Release、tag、上传、安装或执行。
+本文定义 macOS arm64 checker payload 在完成受控构建与独立 acceptance 后、进入 RadishAxiom 主仓 active registration 前的确定性归档和候选留存边界。它不修改构建或 acceptance 语义，不选择最终产品发布载体；仓库内 workflow 只是受审实现，提交、推送、进入默认分支、手工运行以及其中的下载、构建和上传仍分别受外部动作授权约束。本切片不授权 Release、tag、安装或产品执行。
 
 ## 确定性内层归档
 
@@ -33,12 +33,17 @@ GOTOOLCHAIN=local CGO_ENABLED=0 GOPROXY=off go run ./cmd/radishaxiom-checker-pay
 
 ## 两级留存策略
 
-候选阶段选择 GitHub Actions workflow artifact 作为有限期暂存候选，而不是 active runtime store：
+候选阶段选择 GitHub Actions workflow artifact 作为有限期暂存候选，而不是 active runtime store。`.github/workflows/checker-payload-candidate.yml` 只有 `workflow_dispatch` 入口，并要求操作者显式填写当前 `checker.source`、精确实现版本和候选上传确认；它只接受 `dev` / `master` branch ref，在 arm64 `macos-15` runner 上复跑仓库门禁，再取得、复核并仅把已经接受的 `go1.26.7.darwin-arm64.tar.gz` 交给受控构建器。`actions/setup-go` 只运行仓库内 orchestrator，不是 payload 编译器；两个正式候选 build 仍只由构建器解开的精确已接受 archive 产生。
 
-- 上传对象是上述单一内层 `.tar`，不把 GitHub 自动形成的外层 ZIP、文件权限或 artifact name 当成 payload identity；
-- 必须绑定 repository、workflow run ID、head SHA、artifact ID、创建 / 到期时间、外层 provider digest / size，以及内层 tar 原始长度 / SHA-256；fetch 只允许精确 artifact ID，不允许 name、latest 或“最近成功 run”；
-- 上传后必须由另一个 read-back job 从 GitHub 重新下载，复算内层 tar 身份并运行 `verify`；上传 job 本地文件不能替代 provider 回读；
+上传与回读边界为：
+
+- 使用精确固定的 `actions/upload-artifact@v7.0.1` direct-file 模式上传上述单一 `.tar`，`archive: false` 禁止 GitHub 再形成外层 ZIP；provider name 只是文件名，不是 payload identity；
+- 必须绑定 repository、workflow run ID / attempt、ref、head SHA、artifact ID、创建 / 到期时间、provider digest / size，以及 tar 原始长度 / SHA-256 和内层 manifest 长度 / SHA-256；direct-file 模式下 provider digest / size 应与 tar 原始身份相同，任何差异都失败；
+- 上传后必须由另一个 Ubuntu read-back job 使用精确固定的 `actions/download-artifact@v8.0.1` 和唯一 artifact ID 从 GitHub 原样下载，复算 tar 身份并运行 `verify`，再以 artifact REST API 检查 ID、name、size、digest、run、head SHA、created / expires 和未过期状态；上传 job 本地文件不能替代 provider 回读；
+- read-back job 在 workflow summary 写出 `radishaxiom-checker-candidate-provider-readback` v0.1 JSON 交接记录，但它不是 JCS、不是主仓 registration，也不能脱离对应 workflow run / provider API 事实单独证明可取得性；fetch 不允许 name、latest 或“最近成功 run”；
 - public repository 的 workflow artifact 最长只保留 90 天，删除 workflow run 也会删除其 artifacts。因此该层只允许 `candidate-retained-temporarily`，永远不能把主仓 active runtime 从 `0` 提升为 `1`。
+
+GitHub 只会对已经存在于默认分支的 `workflow_dispatch` 文件接收手工触发。因此 checker `dev` 上的实现完成并不等于可运行；按仓库治理进入 `master`、随后选择精确 `dev` 或 `master` ref 触发，都是后续单独的远程动作。workflow 不监听 push、pull request、schedule、workflow run 或 repository dispatch，不自动生成候选。
 
 长期 active storage 仍保持未选择。它至少必须提供不可变原始资产、稳定精确 fetch、原始 byte length / SHA-256、独立回读、撤销 / replacement 规则和不依赖 latest alias 的身份。GitHub immutable release assets 是可评估候选，但启用 release immutability、创建 tag / Release、上传或公开 payload 均属于另行设计和单独授权的发布动作；本切片不提前决定。
 
@@ -46,7 +51,7 @@ GitHub 平台事实参考：[workflow artifact 留存与删除](https://docs.git
 
 ## 信任与停止线
 
-- archive digest 不替代 artifact、provenance、acceptance 或 `checker.source` 各自身份；GitHub 外层 artifact digest 也不替代内层 tar 或成员摘要。
+- archive digest 不替代 artifact、provenance、acceptance 或 `checker.source` 各自身份；GitHub direct-file provider digest 即使与 tar digest 相同，也不替代内层成员摘要、provider artifact ID 或有效期。
 - `pack` / `verify` 成功不是 payload acceptance、runtime registration、publication、installation、launcher isolation、签名或形式证明。
 - 未完成 provider 回读或候选已经 expired / deleted 时，主仓只能记录 `unavailable` / `expired`，不能继续保持可取得声明。
 - 没有 durable active storage、独立重新下载复核和单独发布授权前，不形成 active registration 或正式 runtime companion。

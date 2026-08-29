@@ -30,6 +30,7 @@ go.mod
 .gitattributes
 .gitignore
 .github/PULL_REQUEST_TEMPLATE.md
+.github/workflows/checker-payload-candidate.yml
 .github/workflows/pr-check.yml
 cmd/radishaxiom-checker-payload-archive/main.go
 docs/checker-payload-retention-v0.1.md
@@ -93,16 +94,38 @@ printf '%s\n' "$text_files" | while IFS= read -r path; do
 done
 
 workflow=.github/workflows/pr-check.yml
+candidate_workflow=.github/workflows/checker-payload-candidate.yml
 checkout_pin='actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd'
 setup_go_pin='actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e'
+upload_artifact_pin='actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a'
+download_artifact_pin='actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c'
 
 grep -F "$checkout_pin" "$workflow" >/dev/null
 grep -F "$setup_go_pin" "$workflow" >/dev/null
 grep -F 'name: Candidate Quality' "$workflow" >/dev/null
 grep -F 'contents: read' "$workflow" >/dev/null
 
-if LC_ALL=C grep -E 'uses: [^#[:space:]]+@(main|master|v[0-9]+([.]|$))' "$workflow" >/dev/null 2>&1; then
-  echo "GitHub Actions must use exact commit pins, not branches or major tags." >&2
+grep -F 'workflow_dispatch:' "$candidate_workflow" >/dev/null
+grep -F 'confirm_candidate_upload:' "$candidate_workflow" >/dev/null
+grep -F 'actions: read' "$candidate_workflow" >/dev/null
+grep -F 'contents: read' "$candidate_workflow" >/dev/null
+grep -F 'runs-on: macos-15' "$candidate_workflow" >/dev/null
+grep -F 'retention-days: 90' "$candidate_workflow" >/dev/null
+grep -F 'archive: false' "$candidate_workflow" >/dev/null
+grep -F 'artifact-ids: ${{ needs.build_upload.outputs.artifact_id }}' "$candidate_workflow" >/dev/null
+grep -F "$checkout_pin" "$candidate_workflow" >/dev/null
+grep -F "$setup_go_pin" "$candidate_workflow" >/dev/null
+grep -F "$upload_artifact_pin" "$candidate_workflow" >/dev/null
+grep -F "$download_artifact_pin" "$candidate_workflow" >/dev/null
+
+if LC_ALL=C grep -E '^  (push|pull_request|schedule|workflow_run|repository_dispatch):' "$candidate_workflow" >/dev/null 2>&1; then
+  echo "checker payload candidate workflow must remain manual-only." >&2
+  exit 1
+fi
+
+if LC_ALL=C grep -E '^[[:space:]]*uses:' "$workflow" "$candidate_workflow" |
+  LC_ALL=C grep -Ev 'uses: [^@#[:space:]]+@[0-9a-f]{40}([[:space:]]|$)' >/dev/null 2>&1; then
+  echo "GitHub Actions must use exact 40-character lowercase commit pins." >&2
   exit 1
 fi
 
