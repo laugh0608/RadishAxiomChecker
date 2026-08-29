@@ -32,11 +32,18 @@ go.mod
 .github/PULL_REQUEST_TEMPLATE.md
 .github/workflows/checker-payload-candidate.yml
 .github/workflows/pr-check.yml
+cmd/radishaxiom-checker-distribution-accept/main.go
 cmd/radishaxiom-checker-payload-archive/main.go
+cmd/radishaxiom-checker-payload-distribution/main.go
+docs/checker-payload-distribution-v0.1.md
 docs/checker-payload-retention-v0.1.md
 docs/repository-governance.md
+internal/distributionaccept/accept.go
+internal/distributionaccept/accept_test.go
 internal/payloadarchive/archive.go
 internal/payloadarchive/archive_test.go
+internal/payloaddistribution/distribution.go
+internal/payloaddistribution/distribution_test.go
 scripts/check-module-closure.sh
 scripts/check-repo.sh
 scripts/check-source-identity.sh
@@ -113,6 +120,9 @@ grep -F 'runs-on: macos-15' "$candidate_workflow" >/dev/null
 grep -F 'retention-days: 90' "$candidate_workflow" >/dev/null
 grep -F 'archive: false' "$candidate_workflow" >/dev/null
 grep -F 'artifact-ids: ${{ needs.build_upload.outputs.artifact_id }}' "$candidate_workflow" >/dev/null
+grep -F 'go run ./cmd/radishaxiom-checker-distribution-accept' "$candidate_workflow" >/dev/null
+grep -F 'go run ./cmd/radishaxiom-checker-payload-distribution' "$candidate_workflow" >/dev/null
+grep -F '.distribution.tar' "$candidate_workflow" >/dev/null
 grep -F "$checkout_pin" "$candidate_workflow" >/dev/null
 grep -F "$setup_go_pin" "$candidate_workflow" >/dev/null
 grep -F "$upload_artifact_pin" "$candidate_workflow" >/dev/null

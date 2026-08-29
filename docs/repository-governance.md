@@ -27,7 +27,7 @@
 1. `Repository Governance`：必需文件、Agent 入口同步、文本与差异卫生、action 精确固定、稳定聚合名和 PR commit 的 Conventional Commits。
 2. `Checker Go Quality`：精确 `go1.26.7`、`go test`、`go vet`、`gofmt`、`checker.source` 和零第三方 module 闭包。
 
-`.github/workflows/checker-payload-candidate.yml` 是隔离的手工候选流程，不进入常规 push / PR CI。它只接受显式 source、version 与上传确认，在 `macos-15` arm64 runner 上复跑门禁并走受控 build → acceptance → deterministic pack，然后以 direct-file Actions artifact 保留最多 90 天；独立 read-back job 只按 artifact ID 下载、运行严格 archive verifier 并复核 provider API 元数据。该文件进入默认分支、触发 workflow、下载 Go archive、构建与上传都不是仓库内配置自行获得的授权，详见 [payload 候选归档与留存边界 v0.1](checker-payload-retention-v0.1.md)。
+`.github/workflows/checker-payload-candidate.yml` 是隔离的手工候选流程，不进入常规 push / PR CI。它只接受显式 source、version 与上传确认，在 `macos-15` arm64 runner 上复跑门禁并走受控 build → payload acceptance → inner pack → distribution acceptance → outer pack，然后以 direct-file Actions artifact 保留唯一 distribution candidate 最多 90 天；独立 read-back job 只按 artifact ID 下载、运行严格 distribution verifier 并复核 provider API 元数据。该文件进入默认分支、触发 workflow、下载 Go archive、构建与上传都不是仓库内配置自行获得的授权，详见 [payload 候选归档与留存边界 v0.1](checker-payload-retention-v0.1.md)和 [runtime distribution package v0.1](checker-payload-distribution-v0.1.md)。
 
 唯一供后续 Ruleset 绑定的稳定聚合 context 是 `Candidate Quality`。组件可在不改变该 context 的前提下扩展，但不得加入生产 Rust、solver、Node 或其他与 checker 无关的门禁。
 

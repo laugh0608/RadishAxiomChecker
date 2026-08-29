@@ -193,6 +193,20 @@ func Verify(archivePath string) (Result, error) {
 	if err != nil {
 		return Result{}, fmt.Errorf("read payload archive: %w", err)
 	}
+	result, err := VerifyBytes(raw)
+	if err != nil {
+		return Result{}, err
+	}
+	result.ArchivePath = canonical
+	return result, nil
+}
+
+// VerifyBytes applies the same closed USTAR and manifest verification to
+// already retained bytes. It does not materialize a temporary file.
+func VerifyBytes(raw []byte) (Result, error) {
+	if int64(len(raw)) > maxArchiveBytes {
+		return Result{}, fmt.Errorf("payload archive exceeds byte limit")
+	}
 	members, err := decodeArchive(raw)
 	if err != nil {
 		return Result{}, err
@@ -219,7 +233,7 @@ func Verify(archivePath string) (Result, error) {
 	archiveDigest := sha256.Sum256(raw)
 	manifestDigest := sha256.Sum256(manifestMember.raw)
 	return Result{
-		ArchiveBytes: int64(len(raw)), ArchivePath: canonical,
+		ArchiveBytes:   int64(len(raw)),
 		ArchiveSHA256:  fmt.Sprintf("sha256:%x", archiveDigest),
 		ManifestBytes:  int64(len(manifestMember.raw)),
 		ManifestSHA256: fmt.Sprintf("sha256:%x", manifestDigest),
